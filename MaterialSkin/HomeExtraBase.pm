@@ -14,7 +14,7 @@ sub initPlugin {
 
     $extra->{handler} = sub { $class->handleExtra(@_) }; #Sven 2026-02-10
 
-	Plugins::MaterialSkin::Plugin->registerHomeExtra($args{tag}, $extra); #Sven 2026-02-10
+    Plugins::MaterialSkin::Plugin->registerHomeExtra($args{tag}, $extra); #Sven 2026-02-10
 }
 
 #  we don't want these menus to be shown anywhere but as Home Extras
