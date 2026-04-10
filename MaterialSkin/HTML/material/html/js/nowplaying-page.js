@@ -25,6 +25,8 @@ const NP_CUSTOM = 100;
 const NP_ITEM_ACT = 200;
 const NP_MIN_WIDTH_FOR_FULL = 780;
 
+const MAX_LYRICS_DURATION = 60 * 60; // 1hr?
+
 var currentPlayingTrackPosition = 0;
 
 var lmsNowPlaying = Vue.component("lms-now-playing", {
@@ -39,11 +41,11 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
    <template v-for="(item, index) in menu.items">
     <v-divider v-if="item.divider"></v-divider>
     <v-subheader v-else-if="item.header" style="padding-top:16px">{{item.title}}</v-subheader>
-    <v-list-tile v-else-if="undefined==item.title" @click="menuStdAction(item)" >
+    <v-list-tile role="menuitem" v-else-if="undefined==item.title" @click="menuStdAction(item)" >
      <v-list-tile-avatar :tile="true" class="lms-avatar"><v-icon v-if="ACTIONS[item].icon">{{ACTIONS[item].icon}}</v-icon><img v-else-if="ACTIONS[item].svg" class="svg-img" :src="ACTIONS[item].svg | svgIcon(darkUi)"></img></v-list-tile-avatar>
      <v-list-tile-title>{{ACTIONS[item].title}}</v-list-tile-title>
     </v-list-tile>
-    <v-list-tile v-else @click="menuAction(item)">
+    <v-list-tile role="menuitem" v-else @click="menuAction(item)">
      <v-list-tile-avatar v-if="undefined!=item.check"><v-icon>{{item.check ? 'check_box' : 'check_box_outline_blank'}}</v-icon></v-list-tile-avatar>
      <v-list-tile-avatar v-if="undefined!=item.radio"><v-icon>{{item.radio ? 'radio_button_checked' : 'radio_button_unchecked'}}</v-icon></v-list-tile-avatar>
      <v-list-tile-avatar v-else-if="menu.icons" :tile="true" class="lms-avatar"><v-icon v-if="item.icon">{{item.icon}}</v-icon><img v-else-if="item.svg" class="svg-img" :src="item.svg | svgIcon(darkUi)"></img></v-list-tile-avatar>
@@ -61,11 +63,11 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
     <v-tab-item :key="index" :transition="false" :reverse-transition="false">
      <v-card flat class="np-info-card-cover selectable" @touchend="tabTextEnd" @mouseup="tabTextEnd" @contextmenu="event.preventDefault()">
       <v-card-text :class="['np-info-text', TRACK_TAB==index || tab.isMsg ? 'np-info-lyrics' : '', ALBUM_TAB==index ? 'np-info-review' : '']" :id="'np-tab'+index">
-       <div v-if="tab.texttitle" v-html="tab.texttitle" class="np-info-title frosted" :id="'mai-header-'+index" @click="headerClicked($event, index)"></div>
+       <div v-if="tab.texttitle" v-html="tab.texttitle" class="np-info-title frosted" :id="'mai-header-'+index" role="button" @click="headerClicked($event, index)"></div>
        <div v-if="tab.image"><img :src="tab.image" loading="lazy" class="np-mai-img" @dragstart.prevent="" @dragenter.prevent=""></img></div>
        <div v-if="TRACK_TAB==index && tab.lines">
         <template v-for="(line, lindex) in tab.lines">
-         <obj :id="'np-lyrics-'+lindex" v-bind:class="{'lyrics-current-line':tab.highlight && undefined!=playerStatus.current.time && lyricsTimesValid && playerStatus.current.time>=line.time && playerStatus.current.time<((lindex+1)<tab.lines.length ? tab.lines[lindex+1].time : 86400)}">{{line.text.length<1 ? '&nbsp;' : line.text}}</obj></br/>
+         <obj :id="'np-lyrics-'+lindex" v-bind:class="{'lyrics-current-line':tab.highlight && lyricsTimesValid && playerStatus.current.time>=line.time && playerStatus.current.time<((lindex+1)<tab.lines.length ? tab.lines[lindex+1].time : MAX_LYRICS_DURATION)}">{{line.text.length<1 ? '&nbsp;' : line.text}}</obj></br/>
         </template>
        </div>
        <div v-else-if="tab.text" v-bind:class="{'text':TRACK_TAB!=index}" v-html="tab.text"></div>
@@ -96,7 +98,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
            </div>
           </v-list-tile>
          </template>
-         <v-list-tile v-if="undefined!=sect.more" @click="moreClicked(index, sindex)"><v-list-tile-content><v-list-tile-title>{{sect.more}}</v-list-tile-title></v-list-tile-content></v-list-tile>
+         <v-list-tile v-if="undefined!=sect.more" role="button" @click="moreClicked(index, sindex)"><v-list-tile-content><v-list-tile-title>{{sect.more}}</v-list-tile-title></v-list-tile-content></v-list-tile>
         </v-list>
         <div class="np-grid-sect" v-else-if="undefined!=sect.items && sect.grid && sect.items.length>=sect.min">
          <template v-for="(item, iindex) in sect.items">
@@ -109,7 +111,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
            </div>
           </div>
          </template>
-         <div v-if="undefined!=sect.more && undefined!=sect.items && sect.grid && sect.items.length>=sect.min" class="np-grid-more link-item" @click="moreClicked(index, sindex)">{{sect.more}}</div>
+         <div v-if="undefined!=sect.more && undefined!=sect.items && sect.grid && sect.items.length>=sect.min" class="np-grid-more link-item" role="button" @click="moreClicked(index, sindex)">{{sect.more}}</div>
         </div>
         <div v-else-if="undefined!=sect.html" v-html="sect.html"></div>
        </template>
@@ -125,16 +127,16 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
      <v-flex xs4>
       <v-card flat class="np-info-card-cover selectable" @touchend="tabTextEnd" @mouseup="tabTextEnd" @contextmenu="event.preventDefault()">
        <v-card-text :class="['np-info-text-full', TRACK_TAB==index || tab.isMsg ? 'np-info-lyrics' : '', ALBUM_TAB==index ? 'np-info-review' : '']" :id="'np-tab'+index">
-        <div v-if="tab.texttitle" v-html="tab.texttitle" class="np-info-title frosted" :id="'mai-header-'+index" @click="headerClicked($event, index)"></div>
+        <div v-if="tab.texttitle" v-html="tab.texttitle" class="np-info-title frosted" :id="'mai-header-'+index" role="button" @click="headerClicked($event, index)"></div>
         <div v-if="tab.image"><img :src="tab.image" loading="lazy" class="np-mai-img" @dragstart.prevent="" @dragenter.prevent=""></img></div>
         <div v-if="TRACK_TAB==index && tab.lines">
          <template v-for="(line, lindex) in tab.lines">
-          <obj :id="'np-lyrics-'+lindex" v-bind:class="{'lyrics-current-line':tab.highlight && undefined!=playerStatus.current.time && lyricsTimesValid && playerStatus.current.time>line.time && playerStatus.current.time<((lindex+1)<tab.lines.length ? tab.lines[lindex+1].time : 86400)}">{{line.text.length<1 ? '&nbsp;' : line.text}}</obj></br/>
+          <obj :id="'np-lyrics-'+lindex" v-bind:class="{'lyrics-current-line':tab.highlight && lyricsTimesValid && playerStatus.current.time>line.time && playerStatus.current.time<((lindex+1)<tab.lines.length ? tab.lines[lindex+1].time : MAX_LYRICS_DURATION)}">{{line.text.length<1 ? '&nbsp;' : line.text}}</obj></br/>
          </template>
         </div>
         <div v-else-if="tab.text" v-bind:class="{'text':TRACK_TAB!=index}" v-html="tab.text"></div>
         <template v-for="(sect, sindex) in tab.sections">
-         <div class="np-sect-title" v-if="(undefined!=sect.items && sect.items.length>=sect.min) || undefined!=sect.html" :id="'mai-sect-'+sindex+'-'+index">{{sect.title}}<v-btn flat icon class="np-sect-toggle" v-if="undefined!=sect.grid" @click="toggleGrid(index, sindex)">
+         <div class="np-sect-title" v-if="(undefined!=sect.items && sect.items.length>=sect.min) || undefined!=sect.html" :id="'mai-sect-'+sindex+'-'+index">{{sect.title}}<v-btn flat icon class="np-sect-toggle" v-if="undefined!=sect.grid" role="button" @click="toggleGrid(index, sindex)">
           <img class="svg-img" :src="ACTIONS[sect.grid ? USE_LIST_ACTION : USE_GRID_ACTION].svg | svgIcon(darkUi)" loading="lazy" @dragstart.prevent="" @dragenter.prevent=""></img></v-btn></div>
          <v-list v-if="undefined!=sect.items && !sect.grid && sect.items.length>=sect.min" class="lms-list np-info-list">
           <template v-for="(item, iindex) in sect.items">
@@ -160,7 +162,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
             </div>
            </v-list-tile>
           </template>
-          <v-list-tile v-if="undefined!=sect.more" @click="moreClicked(index, sindex)"><v-list-tile-content><v-list-tile-title>{{sect.more}}</v-list-tile-title></v-list-tile-content></v-list-tile>
+          <v-list-tile v-if="undefined!=sect.more" role="button" @click="moreClicked(index, sindex)"><v-list-tile-content><v-list-tile-title>{{sect.more}}</v-list-tile-title></v-list-tile-content></v-list-tile>
          </v-list>
          <div class="np-grid-sect" v-else-if="undefined!=sect.items && sect.grid && sect.items.length>=sect.min">
           <template v-for="(item, iindex) in sect.items">
@@ -173,7 +175,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
             </div>
            </div>
           </template>
-          <div v-if="undefined!=sect.more && undefined!=sect.items && sect.grid && sect.items.length>=sect.min" class="np-grid-more link-item" @click="moreClicked(index, sindex)">{{sect.more}}</div>
+          <div v-if="undefined!=sect.more && undefined!=sect.items && sect.grid && sect.items.length>=sect.min" class="np-grid-more link-item" role="button" @click="moreClicked(index, sindex)">{{sect.more}}</div>
          </div>
          <div v-else-if="undefined!=sect.html" v-html="sect.html"></div>
         </template>
@@ -194,6 +196,9 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
    </v-flex>
    <v-flex xs4>
     <v-btn flat icon v-if="playerStatus.playlist.count>0" v-longpress="playPauseButton" @click.middle="showSleep" id="playPauseB" class="np-playpause" :title="(playerStatus.isplaying ? trans.pause : trans.play) | tooltip('space', keyboardControl)" v-bind:class="{'disabled':disableBtns}"><v-icon x-large class="media-icon">{{playerStatus.iswaiting ? 'pause_circle_outline' : playerStatus.isplaying ? 'pause_circle_filled' : 'play_circle_filled'}}</v-icon></v-btn>
+    <v-btn flat icon v-if="!desktopLayout && MBAR_REP_NAV==mobileBar && playerStatus.playlist.count>0" @click="changePage" class="np-changepage" id="cpage" :title="nextPage=='browse' ? trans.queue : trans.browse">
+     <img class="svg-img" :src="(nextPage=='queue' ? 'queue_music_outline' : 'library-music-outline') | svgIcon(darkUi)" oncontextmenu="return false;"></img>
+    </v-btn>
    </v-flex>
    <v-flex xs4>
     <v-btn flat icon id="np-bar-next" v-bind:class="{'disabled':disableNext}" v-longpress:repeat="nextButton" class="np-std-button" :title="trans.next | tooltip('right', keyboardControl)"><v-icon large class="media-icon">skip_next</v-icon></v-btn>
@@ -219,8 +224,8 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
      <div v-if="techInfo" class="np-bar-tech ellipsis">{{technicalInfo}}</div>
      <div v-else-if="npBarRatings && (repAltBtn.show || shuffAltBtn.show)" class="np-bar-rating np-thumbs-desktop"><v-btn v-if="repAltBtn.show" :title="repAltBtn.tooltip" flat icon v-longpress="repeatClicked" class="np-std-button" v-bind:class="{'disabled':noPlayer}"><v-icon v-if="repAltBtn.icon" class="media-icon">{{repAltBtn.icon}}</v-icon><img v-else :src="repAltBtn.image" class="btn-img"></img></v-btn><v-btn v-if="shuffAltBtn.show" :title="shuffAltBtn.tooltip" flat icon @click="shuffleClicked" class="np-std-button"><v-icon v-if="shuffAltBtn.icon" class="media-icon">{{shuffAltBtn.icon}}</v-icon><img v-else :src="shuffAltBtn.image" class="btn-img"></img></v-btn></div>
      <v-rating v-else-if="showRatings" class="np-bar-rating" v-model="rating.value" :halfIncrements="maxRating>5" hover clearable @click.native="setRating(true)" :readonly="undefined==LMS_P_RP"></v-rating>
-     <div v-else-if="playerStatus.playlist.count>1" class="np-bar-tech" v-bind:class="{'link-item':totalTogglesQueue && !coloredToolbars, 'link-item-ct':totalTogglesQueue && coloredToolbars}" @click.stop="trackCountClicked">{{playerStatus.playlist.current | trackCount(playerStatus.playlist.count)}} <v-btn class="np-bar-queue" flat icon v-if="!pinQueue"><v-icon v-if="showQueue">queue_music</v-icon><img v-else class="svg-img" :src="'queue_music_outline' | svgIcon(darkUi||coloredToolbars)"></img></v-btn></div>
-     <div v-else-if="!pinQueue" class="np-bar-tech"><v-btn class="np-bar-queue" flat icon @click.stop="trackCountClicked"><v-icon v-if="showQueue">queue_music</v-icon><img v-else class="svg-img" :src="'queue_music_outline' | svgIcon(darkUi||coloredToolbars)"></img></v-btn></div>
+     <div v-else-if="playerStatus.playlist.count>1" class="np-bar-tech" v-bind:class="{'link-item':totalTogglesQueue && !coloredToolbars, 'link-item-ct':totalTogglesQueue && coloredToolbars}" @click.stop="trackCountClicked">{{playerStatus.playlist.current | trackCount(playerStatus.playlist.count)}} <v-btn class="np-bar-queue" flat icon v-if="!pinQueue" :title="trans.toggleQueue | tooltip(LMS_TOGGLE_QUEUE_KEYBOARD,keyboardControl,true,false)"><v-icon v-if="showQueue">queue_music</v-icon><img v-else class="svg-img" :src="'queue_music_outline' | svgIcon(darkUi||coloredToolbars)"></img></v-btn></div>
+     <div v-else-if="!pinQueue" class="np-bar-tech"><v-btn class="np-bar-queue" flat icon :title="trans.toggleQueue | tooltip(LMS_TOGGLE_QUEUE_KEYBOARD,keyboardControl,true,false)" @click.stop="trackCountClicked"><v-icon v-if="showQueue">queue_music</v-icon><img v-else class="svg-img" :src="'queue_music_outline' | svgIcon(darkUi||coloredToolbars)"></img></v-btn></div>
      <div v-else class="np-bar-tech">&nbsp;</div>
     </v-list-tile-action>
    </v-list-tile>
@@ -312,7 +317,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
      <div class="np-emblem" v-if="playerStatus.current.emblem" @click="emblemClicked" :style="{background: playerStatus.current.emblem.bgnd}" v-bind:class="{'np-cover-dim':showOverlay}">
       <img :src="playerStatus.current.emblem | emblem()" loading="lazy" @dragstart.prevent="" @dragenter.prevent=""></img>
      </div>
-     <div class="np-menu" :title="trans.menu" @click="showMenu" id="overlay-menu" v-if="showOverlay && playerStatus.playlist.count>0" v-bind:class="{'np-skip-elevate':showOverlay}"></div>
+     <div class="np-menu" :title="trans.menu" role="button" @click="showMenu" id="overlay-menu" v-if="showOverlay && playerStatus.playlist.count>0" v-bind:class="{'np-skip-elevate':showOverlay}"></div>
      <div class="np-close" :title="trans.collapseNp" @click="largeView=false" id="overlay-close" v-if="showOverlay" v-bind:class="{'np-skip-elevate':showOverlay}"></div>
      <table class="np-skip" v-if="showOverlay" @contextmenu="showMenu" @click="clickImage(event)">
       <tr>
@@ -419,7 +424,8 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
                  infoTrack: {album_id:undefined, track_id:undefined, work_id:undefined, path:undefined},
                  trans: { expand:undefined, collapse:undefined, sync:undefined, unsync:undefined, more:undefined, dstm:undefined, randomMix:undefined,
                           repeatAll:undefined, repeatOne:undefined, repeatOff:undefined, shuffleAll:undefined, shuffleAlbums:undefined, shuffleOff:undefined,
-                          play:undefined, pause:undefined, prev:undefined, next:undefined, collapseNp:undefined, expandNp:undefined, menu:undefined, browse:undefined, queue:undefined },
+                          play:undefined, pause:undefined, prev:undefined, next:undefined, collapseNp:undefined, expandNp:undefined, menu:undefined, browse:undefined,
+                          queue:undefined, toggleQueue:undefined },
                  showTotal: true,
                  landscape: false,
                  wide: 0,
@@ -639,8 +645,16 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
             }
             addBrowserHistoryItem();
             if ((window.innerHeight>=LMS_MIN_NP_LARGE_INFO_HEIGHT && this.playerStatus.playlist.count>0) || this.info.show) {
+                if (!this.$store.state.desktopLayout && !this.info.show && MBAR_REP_NAV==this.$store.state.mobileBar) {
+                    // Store current page so that can revert
+                    this.prevPage = this.$store.state.page;
+                }
                 this.largeView = false;
                 this.info.show = !this.info.show;
+                if (!this.$store.state.desktopLayout) {
+                    // Set mobile page
+                    this.$store.commit('setPage', !this.info.show && 'now-playing'!=this.prevPage && MBAR_REP_NAV==this.$store.state.mobileBar ? this.$store.state.prevPage : 'now-playing');
+                }
             }
         }.bind(this));
         bus.$on('npclose', function() {
@@ -702,7 +716,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
                            shuffleAlbums:lmsOptions.supportReleaseTypes ? i18n("Shuffle releases") : i18n("Shuffle albums"),
                            shuffleOff:i18n("No shuffle"), play:i18n("Play"), pause:i18n("Pause"), prev:i18n("Previous track"),
                            next:i18n("Next track"), collapseNp:i18n("Collapse now playing"), expandNp:i18n("Expand now playing"),
-                           menu:i18n("Menu"), browse:i18n('Browse'), queue:i18n('Queue') };
+                           menu:i18n("Menu"), browse:i18n('Browse'), queue:i18n('Queue'), toggleQueue:i18n('Toggle queue') };
             this.info.tabs[TRACK_TAB].title=i18n("Track");
             this.info.tabs[ARTIST_TAB].title=i18n("Artist");
             this.info.tabs[ARTIST_TAB].ctitle=i18n("Composer");
@@ -767,7 +781,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
             this.updateLyricsPosition();
         },
         updateLyricsPosition() {
-            if (this.info.show && this.info.tabs[TRACK_TAB].lines && this.lyricsTimesValid && this.info.tabs[TRACK_TAB].scroll && this.playerStatus.current && undefined!=this.playerStatus.current.time) {
+            if (this.info.show && this.info.tabs[TRACK_TAB].lines && this.lyricsTimesValid && this.info.tabs[TRACK_TAB].scroll) {
                 let pos = undefined;
                 for (let i=0, loop=this.info.tabs[TRACK_TAB].lines, len=loop.length; i<len; ++i) {
                     if (loop[i].time<=this.playerStatus.current.time) {
@@ -1150,7 +1164,7 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
                 if (!this.desktopLayout) {
                     let touch = getTouchPos(ev);
                     let x = undefined==touch ? ev.x : touch.x;
-                    if ((MBAR_THICK==this.mobileBar || MBAR_REP_NAV==this.mobileBar) && x<(window.innerWidth-50)) {
+                    if ((MBAR_THICK==this.mobileBar || MBAR_REP_NAV==this.mobileBar) && x<(window.innerWidth-(MBAR_REP_NAV==this.mobileBar ? 88 : 50))) {
                         this.$store.commit('setPage', 'now-playing');
                         this.info.show = false;
                     }
@@ -1343,7 +1357,17 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
             document.documentElement.style.setProperty('--np-zoom-list', Math.min(this.zoom, 1.4));
         },
         headerClicked(ev, tab) {
+            if (undefined!=this.menu.selection) {
+                return;
+            }
             nowplayingMAIMenuClicked(this, ev, tab);
+        },
+        playerId() {
+            return this.$store.state.player ? this.$store.state.player.id : ""
+        },
+        changePage() {
+            this.$store.commit('setPage', this.nextPage);
+            this.info.show = false;
         }
     },
     filters: {
@@ -1368,8 +1392,8 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
             }
             return (undefined==sep ? "" : sep)+i18n("%1 of %2", (current+1), total);
         },
-        tooltip: function (str, key, showShortcut) {
-            return showShortcut && undefined!=key ? ttShortcutStr(str, key, false, true) : str;
+        tooltip: function (str, shortcut, showShortcut, shift, alt) {
+            return showShortcut ? ttShortcutStr(str, shortcut, shift, undefined==alt || alt) : str;
         }
     },
     watch: {
@@ -1443,6 +1467,9 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
         },
         page() {
             return this.$store.state.page;
+        },
+        nextPage() {
+            return this.info.show ? this.$store.state.prevPage : (this.$store.state.page=='queue' ? 'browse' : 'queue')
         },
         techInfo() {
             return this.$store.state.techInfo &&
@@ -1557,7 +1584,9 @@ var lmsNowPlaying = Vue.component("lms-now-playing", {
         lyricsTimesValid() {
             // Lyrics timing positions are only valid if time of first line >= 0
             // ...see comment in nowplayingFetchTrackInfo
-            return this.info.tabs[TRACK_TAB].lines && this.info.tabs[TRACK_TAB].lines[0].time>=0;
+            return this.info.tabs[TRACK_TAB].lines && this.info.tabs[TRACK_TAB].lines[0].time>=0 &&
+                   undefined!=this.playerStatus.current && undefined!=this.playerStatus.current.time && undefined!=this.playerStatus.current.duration &&
+                   this.playerStatus.current.duration<=MAX_LYRICS_DURATION
         }
     },
     beforeDestroy() {

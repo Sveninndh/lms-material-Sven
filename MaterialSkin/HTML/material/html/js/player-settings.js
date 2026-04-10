@@ -28,7 +28,7 @@ Vue.component('lms-player-settings', {
       <v-btn icon slot="activator"><v-icon>more_vert</v-icon></v-btn>
       <v-list>
        <template v-for="(action, index) in customActions">
-        <v-list-tile @click="doCustomAction(action, {id:playerId, name:playerName})">
+        <v-list-tile role="menuitem" @click="doCustomAction(action, {id:playerId, name:playerName})">
          <v-list-tile-avatar><v-icon v-if="action.icon">{{action.icon}}</v-icon><img v-else-if="action.svg" class="svg-img" :src="action.svg | svgIcon(darkUi)"></img></v-list-tile-avatar>
          <v-list-tile-content><v-list-tile-title>{{action.title}}</v-list-tile-title></v-list-tile-content>
         </v-list-tile>
@@ -549,28 +549,33 @@ Vue.component('lms-player-settings', {
                     this.controlSleepTimer(parseInt(data.result._sleep));
                 }
             });
-            lmsList("", ["libraries"]).then(({data}) => {
-                if (data && data.result && data.result.folder_loop && data.result.folder_loop.length>0) {
-                    this.libraries = [];
-                    for (var i=0, len=data.result.folder_loop.length; i<len; ++i) {
-                        data.result.folder_loop[i].name = data.result.folder_loop[i].name.replace(SIMPLE_LIB_VIEWS, "");
-                        this.libraries.push(data.result.folder_loop[i]);
-                    }
-                    this.libraries.sort(nameSort);
-                    this.libraries.unshift({name: i18n("All"), id:LMS_DEFAULT_LIBRARY});
-                    this.library=this.libraries[0].id;
-                    lmsCommand(this.playerId, ["libraries", "getid"]).then(({data}) => {
-                        if (data && data.result) {
-                            for (var i=0, len=this.libraries.length; i<len; ++i) {
-                                if (this.libraries[i].id==data.result.id) {
-                                    this.library=this.orig.library=this.libraries[i].id;
-                                    break;
+            if (lmsOptions.setPlayerLibrary) {
+                // Libraries are set to browse's library on play
+                this.libraries = [];
+            } else {
+                lmsList("", ["libraries"]).then(({data}) => {
+                    if (data && data.result && data.result.folder_loop && data.result.folder_loop.length>0) {
+                        this.libraries = [];
+                        for (var i=0, len=data.result.folder_loop.length; i<len; ++i) {
+                            data.result.folder_loop[i].name = data.result.folder_loop[i].name.replace(SIMPLE_LIB_VIEWS, "");
+                            this.libraries.push(data.result.folder_loop[i]);
+                        }
+                        this.libraries.sort(nameSort);
+                        this.libraries.unshift({name: i18n("All"), id:LMS_DEFAULT_LIBRARY});
+                        this.library=this.libraries[0].id;
+                        lmsCommand(this.playerId, ["libraries", "getid"]).then(({data}) => {
+                            if (data && data.result) {
+                                for (var i=0, len=this.libraries.length; i<len; ++i) {
+                                    if (this.libraries[i].id==data.result.id) {
+                                        this.library=this.orig.library=this.libraries[i].id;
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                    });
-                }
-            });
+                        });
+                    }
+                });
+            }
             this.update(false);
             this.show = true;
             this.showMenu = false;
