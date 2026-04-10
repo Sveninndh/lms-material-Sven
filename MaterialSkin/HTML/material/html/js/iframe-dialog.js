@@ -160,6 +160,16 @@ function otherClickHandler(e) {
     }
 }
 
+function lmsClickHandler(e) {
+    var target = e.target || e.srcElement;
+    var href = target.tagName === 'A' ? target.getAttribute('href') : undefined;
+    if (href!=null && (href.startsWith("/material/scanner.log") || href.startsWith("/material/server.log"))) {
+        e.preventDefault();
+        e.stopPropagation();
+        bus.$emit('iframe-href', href, true, undefined, "/material/settings/server/debugging.html");
+    }
+}
+
 function clickDirSelect(elem) {
     var id = elem.srcElement.id.split('.')[1];
     bus.$emit('dlg.open', 'file', elem.srcElement.ownerDocument.getElementById(id), true);
@@ -581,6 +591,11 @@ function applyModifications(page, svgCol, darkUi, src) {
                     content.documentElement.classList.add("lms-91p");
                 }
             }
+            if (content.addEventListener) {
+                content.addEventListener('click', lmsClickHandler);
+            } else if (content.attachEvent) {
+                content.attachEvent('onclick', lmsClickHandler);
+            }
         }
 
         if (content && ('other'==page || 'extras'==page || 'lms'==page)) {
@@ -725,14 +740,14 @@ Vue.component('lms-iframe-dialog', {
       <v-list>
        <template v-for="(item, index) in actions">
         <v-divider v-if="item===DIVIDER"></v-divider>
-        <v-list-tile v-else @click="doAction(item, $event)">
+        <v-list-tile role="menuitem" v-else @click="doAction(item, $event)">
          <v-list-tile-avatar><v-icon v-if="item.icon">{{item.icon}}</v-icon></v-list-tile-avatar>
          <v-list-tile-content><v-list-tile-title>{{item.title}}</v-list-tile-title></v-list-tile-content>
         </v-list-tile>
        </template>
        <v-divider v-if="haveCustomActions"></v-divider>
        <template v-for="(action, index) in customActions" v-if="haveCustomActions">
-        <v-list-tile @click="doCustomAction(action, player)">
+        <v-list-tile role="menuitem" @click="doCustomAction(action, player)">
          <v-list-tile-avatar><v-icon v-if="action.icon">{{action.icon}}</v-icon><img v-else-if="action.svg" class="svg-img" :src="action.svg | svgIcon(darkUi)"></img></v-list-tile-avatar>
          <v-list-tile-content><v-list-tile-title>{{action.title}}</v-list-tile-title></v-list-tile-content>
         </v-list-tile>
@@ -755,7 +770,7 @@ Vue.component('lms-iframe-dialog', {
  <v-menu v-model="choiceMenu.show" :position-x="choiceMenu.x" :position-y="10" style="z-index:1000">
   <v-list>
    <template v-for="(player, index) in players">
-    <v-list-tile @click="setPlayer(player)" :disabled="player.id==playerId" v-bind:class="{'active-player':player.id==playerId}">
+    <v-list-tile role="menuitem" @click="setPlayer(player)" :disabled="player.id==playerId" v-bind:class="{'active-player':player.id==playerId}">
      <v-list-tile-avatar>
       <v-icon v-if="player.icon.icon">{{player.icon.icon}}</v-icon><img v-else class="svg-img" :src="player.icon.svg | svgIcon(darkUi)"></img>
      </v-list-tile-avatar>
@@ -840,7 +855,7 @@ Vue.component('lms-iframe-dialog', {
         bus.$on('iframe-prompting', function(val) {
             this.prompting = val;
         }.bind(this));
-        bus.$on('iframe-href', function(ref, addToHistory, clearHistoryOf) {
+        bus.$on('iframe-href', function(ref, addToHistory, clearHistoryOf, urlToAdd) {
             if (ref.startsWith("javascript:")) {
                 return;
             }
@@ -855,7 +870,7 @@ Vue.component('lms-iframe-dialog', {
                     this.history.pop();
                 }
             } else if (undefined==addToHistory || addToHistory) {
-                this.history.push(this.src);
+                this.history.push(undefined==urlToAdd ? this.src : urlToAdd);
             }
             this.src = ref;
         }.bind(this));

@@ -17,7 +17,7 @@ Vue.component('lms-toolbar', {
  <div class="maintoolbar-subtitle subtext">{{date}}</div>
 </div>
 <v-layout @click.stop="openNavDrawer" @contextmenu.prevent="playerContextMenu" v-bind:class="{'navdrawer-selector':!mobileNoNowPlaying, 'link-item':!coloredToolbars, 'link-item-ct': coloredToolbars}">
- <v-btn icon class="toolbar-button" @click.stop="openNavDrawer">
+ <v-btn icon class="toolbar-button" @click.stop="openNavDrawer" :aria-label="i18n('Main Menu')">
   <v-icon v-if="!connected" class="red">error</v-icon>
   <img v-else-if="updatesAvailable" class="svg-img" :src="'update' | menuIcon(darkUi, coloredToolbars&&!nowPlayingFull)"></img>
   <img v-else-if="restartRequired" class="svg-img" :src="'restart' | menuIcon(darkUi, coloredToolbars&&!nowPlayingFull)"></img>
@@ -39,13 +39,10 @@ Vue.component('lms-toolbar', {
   <v-icon>{{playerMuted ? 'volume_off' : playerStatus.volume>0 ? 'volume_up' : 'volume_down'}}</v-icon>
   <div v-if="VOL_FIXED!=playerDvc" v-bind:class="{'disabled':noPlayer,'vol-btn-label':!desktopLayout||!showVolumeSlider,'dimmed':playerMuted}" >{{playerStatus.volume|displayVolume(playerDvc)}}</div>
  </v-btn>
- <v-btn icon :title="trans.info | tooltip(LMS_TRACK_INFO_KEYBOARD,keyboardControl)" v-if="!desktopLayout && (MBAR_THICK==mobileBar || isNowPlayingPage)" @click.native="emitInfo" class="toolbar-button hide-for-mini" id="inf" v-bind:class="{'disabled':!LMS_P_MAI || (playerStatus.count<1 && !infoOpen)}">
+ <v-btn icon :title="trans.info | tooltip(LMS_TRACK_INFO_KEYBOARD,keyboardControl)" v-if="showMai" @click.native="emitInfo" class="toolbar-button hide-for-mini" id="inf" v-bind:class="{'disabled':!LMS_P_MAI || (playerStatus.count<1 && !infoOpen)}">
   <img class="svg-img" :src="(infoOpen ? 'mai-filled' : 'mai') | svgIcon(darkUi, coloredToolbars&&!nowPlayingFull)"></img>
  </v-btn>
- <v-btn icon v-else-if="!desktopLayout && MBAR_REP_NAV==mobileBar" @click="changePage" class="toolbar-button hide-for-mini" id="cp" :title="currentPage=='browse' ? trans.queue : trans.browse">
-  <img class="svg-img" :src="(currentPage=='browse' ? 'queue_music_outline' : 'library-music-outline') | svgIcon(darkUi, coloredToolbars)" oncontextmenu="return false;"></img>
- </v-btn>
- <v-btn icon v-else-if="!desktopLayout && MBAR_THICK!=mobileBar && !isNowPlayingPage" v-longpress="playPauseButton" class="toolbar-button hide-for-mini" id="pp" :title="playerStatus.isplaying ? trans.pause : trans.play" v-bind:class="{'disabled':!LMS_P_MAI || (playerStatus.count<1 && !infoOpen)}">
+ <v-btn icon v-if="!desktopLayout && MBAR_THICK!=mobileBar && MBAR_REP_NAV!=mobileBar && !isNowPlayingPage" v-longpress="playPauseButton" class="toolbar-button hide-for-mini" id="pp" :title="playerStatus.isplaying ? trans.pause : trans.play" v-bind:class="{'disabled':!LMS_P_MAI || (playerStatus.count<1 && !infoOpen)}">
   <v-icon>{{playerStatus.isplaying ? 'pause_circle_filled' : 'play_circle_filled'}}</v-icon>
  </v-btn>
  <v-btn icon :title="trans.info | tooltip(LMS_TRACK_INFO_KEYBOARD,keyboardControl)" v-if="desktopLayout" @click.native="emitInfo" class="toolbar-button hide-for-mini" v-bind:class="{'disabled':!LMS_P_MAI || (playerStatus.count<1 && !infoOpen)}" id="info-btn">
@@ -65,7 +62,7 @@ Vue.component('lms-toolbar', {
 <v-menu v-model="menu.show" :position-x="menu.x" :position-y="menu.y">
  <v-list>
   <template v-for="(entry, index) in menu.items">
-   <v-list-tile @click="menuAction(entry.cmd, $event)">
+   <v-list-tile role="menuitem" @click="menuAction(entry.cmd, $event)">
     <v-list-tile-avatar>
      <v-icon v-if="undefined==entry.svg" v-bind:class="{'dimmed': entry.dimmed}">{{entry.icon}}</v-icon>
      <img v-else class="svg-img" :src="entry.svg | svgIcon(darkUi)"></img>
@@ -245,9 +242,6 @@ Vue.component('lms-toolbar', {
             }
             if (LMS_P_MAI) {
                 bus.$emit('info');
-                if (!this.$store.state.desktopLayout && this.playerStatus.count>=1) {
-                    this.$store.commit('setPage', 'now-playing');
-                }
             }
         },
         expandNowPlaying() {
@@ -406,7 +400,7 @@ Vue.component('lms-toolbar', {
             if (PMGR_SYNC_ACTION.cmd==cmd) {
                 bus.$emit('dlg.open', 'sync', this.$store.state.player);
             } else if (PMGR_SETTINGS_ACTION.cmd==cmd) {
-                bus.$emit('dlg.open', 'playersettings', this.$store.state.player, undefined, true);
+                bus.$emit('dlg.open', 'playersettings', this.$store.state.player);
             } else if (PMGR_POWER_ON_ACTION.cmd==cmd || PMGR_POWER_OFF_ACTION.cmd==cmd) {
                 lmsCommand(this.$store.state.player.id, ["power", this.$store.state.player.ison ? "0" : "1"]).then(({data}) => {
                     bus.$emit('refreshStatus', this.$store.state.player.id);
@@ -480,6 +474,9 @@ Vue.component('lms-toolbar', {
         },
         mobileNoNowPlaying() {
             return !this.$store.state.desktopLayout && this.$store.state.mobileBar==MBAR_NONE
+        },
+        showMai() {
+            return !this.desktopLayout && (MBAR_THICK==this.mobileBar || MBAR_REP_NAV==this.mobileBar || this.isNowPlayingPage)
         }
     },
     filters: {

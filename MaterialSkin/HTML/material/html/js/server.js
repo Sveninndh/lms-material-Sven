@@ -179,11 +179,24 @@ function lmsCommand(playerid, command, commandId, timeout) {
     const URL = "/jsonrpc.js";
     var data = { id: undefined==commandId ? 0 : commandId, method: "slim.request", params: [playerid, command]};
 
-    let userid = getLocalStorageVal('userid', '');
+    let userid = getLocalStorageVal('userid', ''); //Sven 2026-02-10
     if (userid.length > 0) {
-        data.params[1] = [].concat(data.params[1], 'user_id:' + userid);
-    } else if (undefined!=queryParams.extraParams && queryParams.extraParams.length>0) {
-        data.params[1] = [].concat(data.params[1], queryParams.extraParams);
+        data.params[1] = [].concat(data.params[1], 'user_id:' + userid); //Sven 2026-02-10
+    } else if (bus && bus.$store && bus.$store.state && bus.$store.state.user && bus.$store.state.user.id!=-1) {
+        data.params[1].push("user_id:"+bus.$store.state.user.id);
+    }
+
+    // Set player's library to current vlib
+    if (lmsOptions.setPlayerLibrary && undefined!=playerid && bus && bus.$store && bus.$store.state && bus.$store.state.player && bus.$store.state.player.id==playerid && undefined!=bus.$store.state.library && command.length>=3) {
+        if ( (command[0]=="playlistcontrol" && (command[1]=="cmd:load" || bus.$store.state.player.trkcount==0)) ||
+           ( (command[0]=="favorites" && command[1]=="playlist" && (command[2]=="play" || bus.$store.state.player.trkcount==0))) ) {
+            setTimeout(function () {
+                axios.post(URL, { id:0, method: "slim.request", params: [playerid, ["material-skin-client", "set-lib", "id:"+bus.$store.state.library, "store:1"]]});
+            }, 500);
+        }/* Restore happens in Plugin.pm, it monitors for changes.
+            else if (command[0]=="playlist" && command[1]=="clear") {
+            axios.post(URL, { id:0, method: "slim.request", params: [playerid, ["material-skin-client", "set-lib", "restore:1"]]});
+        }*/
     }
 
     logJsonMessage("REQ", data.params);
@@ -473,6 +486,7 @@ var lmsServer = Vue.component('lms-server', {
                     if (1==parseInt(i.connected) && // Only list/use connected players...
                         !lmsOptions.hidePlayers.has(i.playerid) &&
                         (undefined==checkPlayer || (checkPlayer==i.playerid || checkPlayer==i.name))) {
+                        let weight = lmsOptions.playerWeightMap[i.playerid];
                         players.push({ id: i.playerid,
                                        name: i.name,
                                        canpoweroff: 1==parseInt(i.canpoweroff),
@@ -483,6 +497,8 @@ var lmsServer = Vue.component('lms-server', {
                                        ip: i.ip,
                                        icon: mapPlayerIcon(i),
                                        color: mapPlayerColor(i),
+                                       weight: undefined==weight ? -1 : weight,
+                                       enabled: !lmsOptions.disabledPlayers.has(i.playerid),
                                        link: ("squeezelite"==i.model && i.firmware && i.firmware.endsWith("-pCP")) || "squeezeesp32"==i.model
                                              ? "http://"+i.ip.split(':')[0] : undefined
                                       });
@@ -546,6 +562,8 @@ var lmsServer = Vue.component('lms-server', {
                 player.isgroup = this.$store.state.player.isgroup;
                 player.icon = this.$store.state.player.icon;
                 player.color = this.$store.state.player.color;
+                player.weight = this.$store.state.player.weight;
+                player.enabled = this.$store.state.player.enabled;
                 player.link = this.$store.state.player.link;
                 player.model = this.$store.state.player.model;
                 this.isPlaying = player.isplaying;
@@ -556,6 +574,8 @@ var lmsServer = Vue.component('lms-server', {
                         player.isgroup = this.$store.state.players[i].isgroup;
                         player.icon = this.$store.state.players[i].icon;
                         player.color = this.$store.state.players[i].color;
+                        player.weight = this.$store.state.players[i].weight;
+                        player.enabled = this.$store.state.players[i].enabled;
                         player.link = this.$store.state.players[i].link;
                         player.model = this.$store.state.players[i].model;
                         found = true;

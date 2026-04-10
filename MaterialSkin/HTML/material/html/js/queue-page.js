@@ -48,15 +48,12 @@ function buildArtistAlbumLines(i, queueAlbumStyle, queueContext) {
     let ws = false;
     //let artistStr = i.albumartist ? i.albumartist : i.artist ? i.artist : i.trackartist; - moved into queueAlbumStyle block
     if (queueAlbumStyle) {
-        let artistStr = i.albumartist ? i.albumartist : i.artist ? i.artist : i.trackartist;
-        let id = i.albumartist ? i.albumartist_id : i.artist_id ? i.artist_id : i.trackartist_id;
-        if (!artistStr && i.remote) {
+        let artistType = i.albumartist ? 'albumartist' : i.artist ? 'artist' : i.trackartist ? 'trackartist' : undefined;
+        if (!artistType && i.remote) {
             artistAlbum = i.remote_title ? i.remote_title : i.title;
             artistIsRemoteTitle = true;
-        } else if ((IS_MOBILE && !lmsOptions.touchLinks) || undefined==id) {
-            artistAlbum = artistStr;
-        } else {
-            artistAlbum = buildLink(i.albumartist ? 'show_albumartist' : 'show_artist', id, artistStr, 'queue');
+        } else if (artistType) {
+            artistAlbum = addArtistLink(i, undefined, artistType, artistType=='albumartist' ? 'show_albumartist' : 'show_artist', 'queue', new Set(), (IS_MOBILE && !lmsOptions.touchLinks));
         }
     } else {
         let useComposerTag = i.composer && lmsOptions.showComposer && useComposer(i);
@@ -76,13 +73,28 @@ function buildArtistAlbumLines(i, queueAlbumStyle, queueContext) {
         artistAlbumContext = undefined;
     }
     if (!queueAlbumStyle || !artistIsRemoteTitle) {
+        if (queueAlbumStyle) {
+            let used = new Set();
+            let plain = (IS_MOBILE && !lmsOptions.touchLinks);
+            let artistType = i.albumartist ? 'albumartist' : i.artist ? 'artist' : i.trackartist ? 'trackartist' : undefined;
+            if (artistType) {
+                let names = i[artistType+'s'] || [i[artistType]];
+                names.forEach(function(n) { if (n) used.add(n); });
+            }
+            if (i.band && lmsOptions.showBand && useBand(i)) {
+                artistAlbum = addPart(artistAlbum, addArtistLink(i, undefined, 'band', 'show_band', 'queue', used, plain));
+            }
+            if (i.conductor && (i.work || (lmsOptions.showConductor && useConductor(i)))) {
+                artistAlbum = addPart(artistAlbum, addArtistLink(i, undefined, 'conductor', 'show_conductor', 'queue', used, plain));
+            }
+        }
         artistAlbum = addPart(artistAlbum, buildAlbumLine(i, 'queue'));
         let work = buildWorkLine(i, 'queue');
         if (queueAlbumStyle) {
             if (albumGroupingType(i.disccount, ALWAYS_GROUP_HEADING, i.contiguous_groups, i.added_from_work)==MULTI_GROUP_ALBUM) {
                 if (work) {
                     // track has a work tag
-                    artistAlbum = addPart(work, i.work!=i.grouping ? i.grouping : undefined)+'<br/><div class="pq-gsub ellipsis">'+artistAlbum+'</div>';
+                    artistAlbum = work+'<br/><div class="pq-gsub ellipsis">'+artistAlbum+'</div>';
                     ws = true;
                 } else if (i.grouping) {
                     // track has a grouping tag
@@ -127,6 +139,7 @@ function parseResp(data, showTrackNum, index, showRatings, queueAlbumStyle, queu
             let albumDuration = 0;
             let calcDurations = queueAlbumStyle && resp.size == data.result.playlist_loop.length;
             pqGroupingMap.clear();
+            let grpHeaderNames = undefined;
             for (var idx=0, loop=data.result.playlist_loop, loopLen=loop.length; idx<loopLen; ++idx) {
                 let i = makeHtmlSafe(loop[idx]);
                 if ( !('contiguous_groups' in i) ) {
@@ -139,7 +152,8 @@ function parseResp(data, showTrackNum, index, showRatings, queueAlbumStyle, queu
                 pqGroupingMap.set(parseInt(i['playlist index']), [parseInt(i.disccount), parseInt(i.contiguous_groups), parseInt(i.added_from_work)]);
                 i.isClassical = undefined!=i.isClassical && 1==parseInt(i.isClassical);
                 splitMultiples(i, true);
-                let title = queueAlbumStyle && albumGroupingType(i.disccount, ALWAYS_GROUP_HEADING, i.contiguous_groups, i.added_from_work)==MULTI_GROUP_ALBUM ? i.title : trackTitle(i);
+                let isMultiGroup = queueAlbumStyle && albumGroupingType(i.disccount, ALWAYS_GROUP_HEADING, i.contiguous_groups, i.added_from_work)==MULTI_GROUP_ALBUM;
+                let title = isMultiGroup ? i.title : trackTitle(i);
                 let artist = i.albumartist ? i.albumartist : i.artist ? i.artist : i.trackartist;
                 if (i.remote && undefined==title && undefined==artist && undefined==i.album) {
                     title = artist = i.album = i.artist = i18n('Unknown');
@@ -147,9 +161,46 @@ function parseResp(data, showTrackNum, index, showRatings, queueAlbumStyle, queu
                 if (showTrackNum && i.tracknum>0) {
                     title = formatTrackNum(i)+SEPARATOR+title;
                 }
+                let duration = undefined==i.duration ? undefined : parseFloat(i.duration);
+                let prevItem = 0==idx ? lastInCurrent : resp.items[idx-1];
+                let image = queueItemCover(i);
+                let groupId = isMultiGroup ? (i.composer && i.work ? i.composer+"-"+i.work+(i.performance ? "-"+i.performance : "")+(i.grouping ? "-"+i.grouping : "")+(i.added_from_work ? "-"+i.added_from_work : "") : i.grouping ? i.grouping : undefined) : undefined;
+                let isAlbumHeader = queueAlbumStyle &&
+                                     ( undefined==prevItem ||
+                                       i.album_id!=prevItem.album_id ||
+                                       (i.disc!=prevItem.disc && undefined==groupId) ||
+                                       groupId!=prevItem.groupId ||
+                                       (undefined==i.album_id && ( (undefined!=image && image!=prevItem.image) ||
+                                                                   (i.album!=prevItem.album) ) ) );
+                if (isAlbumHeader && isMultiGroup) {
+                    grpHeaderNames = new Set();
+                    let artistType = i.albumartist ? 'albumartist' : i.artist ? 'artist' : i.trackartist ? 'trackartist' : undefined;
+                    if (artistType) {
+                        let names = i[artistType+'s'] || [i[artistType]];
+                        names.forEach(function(n) { if (n) grpHeaderNames.add(n); });
+                    } else if (artist) {
+                        grpHeaderNames.add(artist);
+                    }
+                    if (i.band && lmsOptions.showBand && useBand(i)) {
+                        if (i.bands) {
+                            i.bands.forEach(function(b) { grpHeaderNames.add(b); });
+                        } else {
+                            grpHeaderNames.add(i.band);
+                        }
+                    }
+                    if (i.conductor && (i.work || (lmsOptions.showConductor && useConductor(i)))) {
+                        if (i.conductors) {
+                            i.conductors.forEach(function(c) { grpHeaderNames.add(c); });
+                        } else {
+                            grpHeaderNames.add(i.conductor);
+                        }
+                    }
+                } else if (isAlbumHeader) {
+                    grpHeaderNames = undefined;
+                }
                 let haveRating = showRatings && undefined!=i.rating;
                 if (queueAlbumStyle) {
-                    let extra = buildArtistLine(i, 'queue', false, artist);
+                    let extra = buildArtistLine(i, 'queue', false, isMultiGroup && grpHeaderNames ? grpHeaderNames : artist, undefined, isMultiGroup && i.composer && i.work ? false : undefined, undefined);
                     let addedClass = false;
                     if (!isEmpty(extra)) {
                         addedClass = true;
@@ -161,17 +212,6 @@ function parseResp(data, showTrackNum, index, showRatings, queueAlbumStyle, queu
                         title+='</obj>';
                     }
                 }
-                let duration = undefined==i.duration ? undefined : parseFloat(i.duration);
-                let prevItem = 0==idx ? lastInCurrent : resp.items[idx-1];
-                let image = queueItemCover(i);
-                let groupId = albumGroupingType(i.disccount, ALWAYS_GROUP_HEADING, i.contiguous_groups, i.added_from_work)==MULTI_GROUP_ALBUM ? (i.composer && i.work ? i.composer+"-"+i.work+(i.performance ? "-"+i.performance : "")+(i.grouping ? "-"+i.grouping : "")+(i.added_from_work ? "-"+i.added_from_work : "") : i.grouping ? i.grouping : undefined) : undefined;
-                let isAlbumHeader = queueAlbumStyle &&
-                                     ( undefined==prevItem ||
-                                       i.album_id!=prevItem.album_id ||
-                                       (i.disc!=prevItem.disc && undefined==groupId) ||
-                                       groupId!=prevItem.groupId ||
-                                       (undefined==i.album_id && ( (undefined!=image && image!=prevItem.image) ||
-                                                                   (i.album!=prevItem.album) ) ) );
                 let grpKey = isAlbumHeader || undefined==prevItem ? index+resp.items.length : prevItem.grpKey;
                 let artistAlbumLinesInfo = !queueAlbumStyle || isAlbumHeader ? buildArtistAlbumLines(i, queueAlbumStyle, queueContext && !isAlbumHeader) : undefined;
                 if (calcDurations) {
@@ -210,7 +250,8 @@ function parseResp(data, showTrackNum, index, showRatings, queueAlbumStyle, queu
                                       ? isAlbumHeader ? (artistAlbumLinesInfo && artistAlbumLinesInfo[1] ? LMS_GROUP_QUEUE_HEADER : LMS_ALBUM_QUEUE_HEADER) : LMS_ALBUM_QUEUE_TRACK
                                       : undefined,
                               grpKey:grpKey,
-                              rating: !queueAlbumStyle && haveRating ? Math.ceil(i.rating/10.0)/2.0 : undefined
+                              rating: !queueAlbumStyle && haveRating ? Math.ceil(i.rating/10.0)/2.0 : undefined,
+                              headerNames: grpHeaderNames
                           });
                 index++;
             }
@@ -293,7 +334,7 @@ var lmsQueue = Vue.component("lms-queue", {
     </v-list-tile-content>
     <v-list-tile-action class="pq-time">{{item.durationStr}}</v-list-tile-action>
     <v-list-tile-action class="queue-action" v-bind:class="{'pq-first-track-menu':item.artistAlbum}" @click.stop="itemMenu(item, index, $event)">
-     <div class="grid-btn list-btn hover-btn menu-btn" :title="i18n('%1 (Menu)', item.tooltip)"></div>
+     <div class="grid-btn list-btn hover-btn menu-btn" role="button" :aria-label="i18n('%1 (Menu)', item.tooltip)"></div>
     </v-list-tile-action>
     <img v-if="index==currentIndex" :class="['pqi-'+iRgb, 'pq-current-indicator']" :src="'pq-current' | indIcon"></img>
    </v-list-tile>
@@ -315,7 +356,7 @@ var lmsQueue = Vue.component("lms-queue", {
      </v-list-tile-content>
      <v-list-tile-action class="pq-time">{{item.durationStr}}</v-list-tile-action>
      <v-list-tile-action class="queue-action" @click.stop="itemMenu(item, index, $event)">
-      <div class="grid-btn list-btn hover-btn menu-btn" :title="i18n('%1 (Menu)', item.tooltip)"></div>
+      <div class="grid-btn list-btn hover-btn menu-btn" role="button" :aria-label="i18n('%1 (Menu)', item.tooltip)"></div>
      </v-list-tile-action>
      <v-rating v-if="undefined!=item.rating" class="pq-rating" v-bind:class="{'pq-rating-3':threeLines}" v-model="item.rating" half-increments readonly></v-rating>
      <img v-if="index==currentIndex" :class="['pqi-'+iRgb, 'pq-current-indicator']" :src="'pq-current' | indIcon"></img>
@@ -329,7 +370,7 @@ var lmsQueue = Vue.component("lms-queue", {
    <template v-for="(action, index) in menu.item.actions">
     <v-divider v-if="DIVIDER==action"></v-divider>
     <template v-for="(cact, cindex) in queueCustomActions" v-else-if="CUSTOM_ACTIONS==action">
-     <v-list-tile @click="itemCustomAction(cact, menu.item, menu.index, $event)">
+     <v-list-tile role="menuitem" @click="itemCustomAction(cact, menu.item, menu.index, $event)">
       <v-list-tile-avatar>
        <v-icon v-if="undefined==cact.svg">{{cact.icon}}</v-icon>
        <img v-else class="svg-img" :src="cact.svg | svgIcon(darkUi)"></img>
@@ -337,7 +378,7 @@ var lmsQueue = Vue.component("lms-queue", {
       <v-list-tile-title>{{cact.title}}</v-list-tile-title>
      </v-list-tile>
     </template>
-    <v-list-tile v-else-if="action==SELECT_ACTION && menu.item.selected" @click="itemAction(UNSELECT_ACTION, menu.item, menu.index, $event)">
+    <v-list-tile role="menuitem" v-else-if="action==SELECT_ACTION && menu.item.selected" @click="itemAction(UNSELECT_ACTION, menu.item, menu.index, $event)">
      <v-list-tile-avatar>
       <v-icon>{{ACTIONS[UNSELECT_ACTION].icon}}</v-icon>
      </v-list-tile-avatar>
@@ -345,9 +386,9 @@ var lmsQueue = Vue.component("lms-queue", {
     </v-list-tile>
     <div v-else-if="action==REMOVE_ACTION && ((undefined!=menu.item.disc && menu.item.disc>0) || (undefined!=menu.item.album_id))">
      <v-list-group v-model="menuExpanded" @click.stop="">
-      <template v-slot:activator><v-list-tile><v-list-tile-content><v-list-tile-title>{{ACTIONS[REMOVE_ACTION].title}}</v-list-tile-title></v-list-tile-content><v-list-tile></template>
+      <template v-slot:activator><v-list-tile role="menuitem"><v-list-tile-content><v-list-tile-title>{{ACTIONS[REMOVE_ACTION].title}}</v-list-tile-title></v-list-tile-content><v-list-tile></template>
       <template v-for="subAction in PQ_REMOVE_ACTIONS">
-       <v-list-tile @click="itemAction(subAction, menu.item, menu.index, $event)" v-if="(PQ_REMOVE_DISC_ACTION==subAction && undefined!=menu.item.disc && menu.item.disc>0) || (PQ_REMOVE_ALBUM_ACTION==subAction && undefined!=menu.item.album_id) || (PQ_REMOVE_ARTIST_ACTION==subAction && undefined!=menu.item.artist_id) || PQ_REMOVE_TRACK_ACTION==subAction">
+       <v-list-tile role="menuitem" @click="itemAction(subAction, menu.item, menu.index, $event)" v-if="(PQ_REMOVE_DISC_ACTION==subAction && undefined!=menu.item.disc && menu.item.disc>0) || (PQ_REMOVE_ALBUM_ACTION==subAction && undefined!=menu.item.album_id) || (PQ_REMOVE_ARTIST_ACTION==subAction && undefined!=menu.item.artist_id) || PQ_REMOVE_TRACK_ACTION==subAction">
         <v-list-tile-avatar>
          <v-icon v-if="undefined==ACTIONS[subAction].svg">{{ACTIONS[subAction].icon}}</v-icon>
          <img v-else class="svg-img" :src="ACTIONS[subAction].svg | svgIcon(darkUi)"></img>
@@ -358,7 +399,7 @@ var lmsQueue = Vue.component("lms-queue", {
      </v-list-group>
      <v-divider></v-divider>
     </div>
-    <v-list-tile v-else-if="action==PQ_COPY_ACTION ? browseSelection : action==MOVE_HERE_ACTION ? (selection.size>0 && !menu.item.selected) : action==PQ_ZAP_ACTION ? LMS_P_CS : action==DOWNLOAD_ACTION ? lmsOptions.allowDownload && menu.item.isLocal : (action!=PQ_PLAY_NEXT_ACTION || (menu.index!=currentIndex && menu.index!=currentIndex+1))" @click="itemAction(action, menu.item, menu.index, $event)">
+    <v-list-tile role="menuitem" v-else-if="action==PQ_COPY_ACTION ? browseSelection : action==MOVE_HERE_ACTION ? (selection.size>0 && !menu.item.selected) : action==PQ_ZAP_ACTION ? LMS_P_CS : action==DOWNLOAD_ACTION ? lmsOptions.allowDownload && menu.item.isLocal : (action!=PQ_PLAY_NEXT_ACTION || (menu.index!=currentIndex && menu.index!=currentIndex+1))" @click="itemAction(action, menu.item, menu.index, $event)">
      <v-list-tile-avatar>
       <v-icon v-if="undefined==ACTIONS[action].svg">{{ACTIONS[action].icon}}</v-icon>
       <img v-else class="svg-img" :src="ACTIONS[action].svg | svgIcon(darkUi)"></img>
@@ -371,7 +412,7 @@ var lmsQueue = Vue.component("lms-queue", {
    <template v-for="(action, index) in menu.actions">
     <v-divider v-if="DIVIDER==action"></v-divider>
     <div style="height:0px!important" v-else-if="(action==PQ_PIN_ACTION && (pinQueue || !desktopLayout || windowWide<2 || nowPlayingExpanded)) || (action==PQ_UNPIN_ACTION && (!pinQueue || !desktopLayout || windowWide<2))"/>
-    <v-list-tile @click="headerAction(action, $event)" v-bind:class="{'disabled':(items.length<1 && PQ_REQUIRE_AT_LEAST_1_ITEM.has(action)) || (items.length<2 && PQ_REQUIRE_MULTIPLE_ITEMS.has(action))}" v-else-if="(!LMS_KIOSK_MODE || !HIDE_FOR_KIOSK.has(action)) && (action==PQ_SAVE_ACTION ? wide<2 : action!=PQ_MOVE_QUEUE_ACTION || showMoveAction)">
+    <v-list-tile role="menuitem" @click="headerAction(action, $event)" v-bind:class="{'disabled':(items.length<1 && PQ_REQUIRE_AT_LEAST_1_ITEM.has(action)) || (items.length<2 && PQ_REQUIRE_MULTIPLE_ITEMS.has(action))}" v-else-if="(!LMS_KIOSK_MODE || !HIDE_FOR_KIOSK.has(action)) && (action==PQ_SAVE_ACTION ? wide<2 : action!=PQ_MOVE_QUEUE_ACTION || showMoveAction)">
      <v-list-tile-avatar>
       <v-icon v-if="action==PQ_TOGGLE_VIEW_ACTION && albumStyle">music_note</v-icon>
       <v-icon v-else-if="undefined==ACTIONS[action].svg">{{ACTIONS[action].icon}}</v-icon>
@@ -556,14 +597,16 @@ var lmsQueue = Vue.component("lms-queue", {
                     var discCount = pqGroupingMap.get(parseInt(index))[0];
                     var contiguousGroups = pqGroupingMap.get(parseInt(index))[1];
                     var addedFromWork = pqGroupingMap.get(parseInt(index))[2];
-                    var title = this.$store.state.queueAlbumStyle && albumGroupingType(discCount, ALWAYS_GROUP_HEADING, contiguousGroups, addedFromWork)==MULTI_GROUP_ALBUM ? i.title : trackTitle(i);
+                    var isMultiGroup = this.$store.state.queueAlbumStyle && albumGroupingType(discCount, ALWAYS_GROUP_HEADING, contiguousGroups, addedFromWork)==MULTI_GROUP_ALBUM;
+                    var title = isMultiGroup ? i.title : trackTitle(i);
                     var rating = this.showRatings && undefined!=i.rating ? Math.ceil(i.rating/10.0)/2.0 : undefined;
                     if (this.$store.state.queueShowTrackNum && i.tracknum>0) {
                         title = formatTrackNum(i)+SEPARATOR+title;
                     }
                     if (this.albumStyle) {
                         let artist = i.albumartist ? i.albumartist : i.artist ? i.artist : i.trackartist;
-                        let extra = buildArtistLine(i, 'queue', false, artist);
+                        let headerNames = isMultiGroup ? this.items[index].headerNames : undefined;
+                        let extra = buildArtistLine(i, 'queue', false, headerNames ? headerNames : artist, undefined, isMultiGroup && i.composer && i.work ? false : undefined, undefined);
                         let addedClass = false;
                         if (!isEmpty(extra)) {
                             addedClass = true;
