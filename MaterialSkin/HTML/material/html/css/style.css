@@ -264,6 +264,14 @@
 
 .browse-title div:first-of-type {
  padding-bottom:1px!important;
+ font-weight:bold;
+ font-size:125%;
+ margin-bottom:-4px!important;
+ margin-top:-1px!important;
+}
+
+.browse-title div:only-of-type {
+ font-size:150%;
 }
 
 .browse-html a, .np-info-text a, .np-info-text-full a,
@@ -291,7 +299,7 @@
 .drag-area-right {
  width:var(--window-area-right)!important;
 }
-/* If using window controls, then we need are under navdrawer to not be drag-active whendraer open */
+/* If using window controls, then we need are under navdrawer to not be drag-active when drawer open */
 @media (min-width:501px) {
  .nd-title-fix {
   min-width:calc(400px - (var(--window-area-left) + 70px));
@@ -334,8 +342,11 @@
 }
 
 /* Checkbox label */
-.v-input--selection-controls.v-input .v-label {
- color:var(--text-color);
+.v-input--selection-controls.v-input .v-label,
+/* ...player icon in 'Player list' dialog, don't want disabled */
+.theme--dark.v-input--selection-controls.v-input--is-disabled .v-avatar .v-icon,
+.theme--light.v-input--selection-controls.v-input--is-disabled .v-avatar .v-icon {
+ color:var(--text-color) !important;
 }
 
 ::-webkit-scrollbar {
@@ -494,30 +505,26 @@ html, .mini-player {
  height:calc(8px + var(--bottom-pad))!important;
 }
 
-.nd-shortuts {
+.nd-shortcuts {
  margin:0px;
  list-style-type:none;
  list-style-image:none;
  padding-left:12px;
- overflow-y:auto;
-}
-
-.nd-shortuts-1 {
- max-height:44px;
+ max-height:88px;
  overflow-y:hidden;
 }
 
-.nd-shortuts-wide {
+.nd-shortcuts-wide {
  padding-left:14px;
 }
 
-.nd-shortuts li {
+.nd-shortcuts li {
  float:left;
  margin-left:0px;
  margin-right:8px;
 }
 
-.nd-shortuts-wide li {
+.nd-shortcuts-wide li {
  margin-right:16px;
 }
 
@@ -698,7 +705,7 @@ div.v-subheader {
 }
 
 .pmgr-icon {
- margin-top:-4px;
+ margin-top:0px;
  margin-right:4px;
 }
 
@@ -1821,6 +1828,7 @@ div.v-subheader {
  object-position:50% 50%;
  margin:auto;
  cursor:pointer;
+ background-color:var(--image-background-color);
 }
 
 .np-mai-img {
@@ -3035,7 +3043,8 @@ div.v-subheader {
 
 .v-menu__content .v-subheader,
 .v-navigation-drawer .v-subheader,
-.sync-dialog .v-subheader {
+.sync-dialog .v-subheader,
+.dialog-main-list .v-subheader {
  height:36px;
  opacity:var(--sub-opacity);
 }
@@ -3120,6 +3129,14 @@ div.v-subheader {
  color:var(--active-color) !important;
  font-weight:var(--bold-weight);
  font-size:var(--std-font-size) !important;
+}
+
+.browse-header .v-list__tile__title .link-item {
+ color:var(--active-color) !important;
+}
+
+.msk-is-non-touch .browse-header .v-list__tile__title .link-item:hover {
+ color:var(--text-color) !important;
 }
 
 .browse-header .v-list__tile__sub-title, .browse-header .browse-time, .browse-header .np-list-time,
@@ -3292,9 +3309,14 @@ div.v-subheader {
 .browse-modes-table {
  display:grid!important;
  grid-template-columns:auto auto auto;
- padding-left:14px;
- padding-right:14px;
+ padding:14px;
  grid-column-gap:8px;
+}
+
+.browse-modes-table .v-input--selection-controls {
+ margin-top:0px!important;
+ padding-top:0px!important;
+ margin-bottom:18px!important;
 }
 
 @media (max-width: 750px) {
@@ -3320,7 +3342,7 @@ div.v-subheader {
 }
 
 .dialog-main-list {
- max-height:calc(var(--100vh) - 240px);
+ max-height:calc(var(--100vh) - 340px);
  overflow-y:auto;
  overflow-x:hidden;
  display:block;
@@ -4552,10 +4574,6 @@ div.v-subheader {
  top:calc(var(--top-pad) + 9px);
 }
 
-.bm-checkbox .v-input--selection-controls__ripple {
- margin:0px!important;
-}
-
 .pbar {
  width:100%;
  position:relative;
@@ -4714,4 +4732,80 @@ div.v-subheader {
  width:100%!important;
  justify-content:right;
  margin-right:8px;
+}
+
+.nd-user {
+ max-width:228px;
+ min-width:120px;
+ max-height:30px;
+ display:flex;
+ justify-content:center;
+ border:2px solid var(--text-color);
+ border-radius:22px;
+ margin-left:auto;
+ margin-right:auto;
+ padding:0px 8px 0px 8px;
+ opacity:var(--sub-opacity);
+}
+
+.nd-avatar {
+ margin-top:-1px;
+ padding-right:8px;
+}
+
+.nd-avatar .svg-img {
+ margin-top:-2px;
+ height:30px!important;
+ min-width:30px!important;
+}
+
+.nd-user div {
+ line-height:30px;
+ height:30px;
+ vertical-align:middle;
+}
+
+.nd-user .user-img {
+ height:28px;
+ width:28px;
+ border-radius:14px;
+}
+
+@media (max-width:500px) {
+ .nd-user {
+  max-width:130px
+ }
+}
+
+.nd-search {
+ display:flex;
+ margin:-20px 16px 32px 16px;
+ max-height:32px!important;
+}
+
+.nd-search button {
+ margin-top:18px!important;
+ margin-right:-8px!important;
+}
+
+.browse-search-btn {
+ position:fixed;
+ right:14px;
+ background:var(--primary-color)!important;
+ border-radius:10px;
+ width:48px;
+ height:48px;
+ padding:11px 12px 12px 12px;
+}
+
+@media (max-width:600px) {
+ .browse-search-btn {
+  width:44px;
+  height:44px;
+  padding:9px 10px 10px 10px;
+ }
+}
+
+.msk-is-non-touch .browse-search-btn:hover {
+ filter:saturate(150%);
 }

@@ -56,27 +56,56 @@ Vue.component('lms-navdrawer', {
 <v-navigation-drawer v-model="show" app temporary :width="maxWidth" style="display:flex;flex-direction:column">
  <div class="nd-top"></div>
  <div class="nd-header">
-  <v-menu v-if="multipleStandardPlayers" bottom left v-model="showMenu" style="position:absolute; right:40px; z-index:5">
+  <v-menu v-if="enableMenuButton" bottom left v-model="showMenu" style="position:absolute; right:40px; z-index:5">
    <v-btn icon slot="activator"><v-icon>more_vert</v-icon></v-btn>
    <v-list>
-    <v-subheader>{{i18n("All players")}}</v-subheader>
-    <v-list-tile @click="sleepAll()" class="menu-group-item">
+    <v-subheader v-if="haveUsers">{{i18n("Users")}}</v-subheader>
+    <template v-for="(user, index) in users" v-if="haveUsers">
+     <v-list-tile role="menuitem" @click="switchUser(user)" class="menu-group-item">
+      <v-list-tile-avatar>
+       <img v-if="undefined!=user.avatar" class="user-img" :src="user.avatar"></img>
+       <img v-else-if="undefined!=user.svg" class="svg-img" :src="user.svg | svgIcon(darkUi)"></img>
+       <v-icon v-else>{{user.icon}}</v-icon>
+      </v-list-tile-avatar>
+      <v-list-tile-content><v-list-tile-title>{{user.name}}</v-list-tile-title></v-list-tile-content>
+     </v-list-tile>
+    </template>
+    <v-divider v-if="haveUsers && multipleStandardPlayers"></v-divider>
+    <v-subheader v-if="multipleStandardPlayers || !haveUsers">{{i18n("All players")}}</v-subheader>
+    <v-list-tile v-if="multipleStandardPlayers || !haveUsers" role="menuitem" @click="sleepAll()" class="menu-group-item">
      <v-list-tile-avatar><v-icon>hotel</v-icon></v-list-tile-avatar>
      <v-list-tile-content><v-list-tile-title>{{i18n('Sleep')}}</v-list-tile-title></v-list-tile-content>
     </v-list-tile>
-    <v-list-tile @click="powerAll(0)" class="menu-group-item">
+    <v-list-tile v-if="multipleStandardPlayers || !haveUsers" role="menuitem" @click="powerAll(0)" class="menu-group-item">
      <v-list-tile-avatar><v-icon class="dimmed">power_settings_new</v-icon></v-list-tile-avatar>
      <v-list-tile-content><v-list-tile-title>{{i18n('Switch off')}}</v-list-tile-title></v-list-tile-content>
     </v-list-tile>
-    <v-list-tile @click="powerAll(1)" class="menu-group-item">
+    <v-list-tile v-if="multipleStandardPlayers || !haveUsers" role="menuitem" @click="powerAll(1)" class="menu-group-item">
      <v-list-tile-avatar><v-icon>power_settings_new</v-icon></v-list-tile-avatar>
      <v-list-tile-content><v-list-tile-title>{{i18n('Switch on')}}</v-list-tile-title></v-list-tile-content>
+    </v-list-tile>
+    <v-divider v-if="numPlayers>1"></v-divider>
+    <v-list-tile v-if="numPlayers>1" role="menuitem" @click="configurePlayerList">
+     <v-list-tile-avatar><img class="svg-img" :src="'list-configure' | svgIcon(darkUi)"></img></v-list-tile-avatar>
+     <v-list-tile-content><v-list-tile-title>{{i18n('Configure player list')}}</v-list-tile-title></v-list-tile-content>
+    </v-list-tile>
+    <v-list-tile v-if="numPlayers!=numEnabledPlayers" role="menuitem" @click="toggleShowAllPlayers">
+     <v-list-tile-avatar><v-icon>{{showAllPlayers ? 'check_box' : 'check_box_outline_blank'}}</v-icon></v-list-tile-avatar>
+     <v-list-tile-content><v-list-tile-title>{{i18n('Show all players')}}</v-list-tile-title></v-list-tile-content>
     </v-list-tile>
    </v-list>
   </v-menu>
   <v-list-tile @click.prevent="close">
-   <v-list-tile-avatar v-if="(undefined==queryParams.dragleft || queryParams.dragleft<=48) && ('l'!=queryParams.tbarBtnsPos)"><v-btn icon flat @click="show=false"><v-icon>arrow_back<v-icon></v-btn></v-list-tile-avatar>
-   <div class="lyrion-logo" v-longpress:nomove="clickLogo"><img :src="'lyrion' | svgIcon(darkUi)"></img></div>
+   <v-list-tile-avatar v-if="(undefined==queryParams.dragleft || queryParams.dragleft<=48) && ('l'!=queryParams.tbarBtnsPos)" :title="i18n('Close')"><v-btn icon flat @click="show=false"><v-icon>arrow_back<v-icon></v-btn></v-list-tile-avatar>
+   <div v-if="LMS_P_USERS" class="nd-user">
+    <div class="nd-avatar" v-if="undefined!=userAvatar.svg || maxWidth>300">
+     <img v-if="undefined!=userAvatar.img" class="user-img" :src="userAvatar.img"></img>
+     <img v-else-if="undefined!=userAvatar.svg" class="svg-img" :src="userAvatar.svg | svgIcon(darkUi)"></img>
+     <v-icon v-else>{{userAvatar.icon}}</v-icon>
+    </div>
+    <div class="ellipsis">{{userName}}</div>
+   </div>
+   <div v-else class="lyrion-logo" v-longpress:nomove="clickLogo"><img :src="'lyrion-logo' | svgIcon(darkUi)"></img></div>
    <v-list-tile-action>
     <v-btn icon @click="menuAction(TB_INFO.id)" style="position:absolute;right:16px" :title="updatesAvailable ? trans.updatesAvailable : restartRequired ? trans.restartRequired : TB_INFO.title">
      <img v-if="updatesAvailable" class="svg-img" :src="'update' | infoIcon(darkUi, true)"></img>
@@ -92,7 +121,7 @@ Vue.component('lms-navdrawer', {
     <v-list-tile-avatar><v-icon class="red">error</v-icon></v-list-tile-avatar>
     <v-list-tile-content><v-list-tile-title>{{trans.connectionLost}}</v-list-tile-title></v-list-tile-content>
    </v-list-tile>
-   <template v-for="(item, index) in players" v-if="connected">
+   <template v-for="(item, index) in visiblePlayers" v-if="connected">
     <v-subheader v-if="index==0 && !item.isgroup && players[players.length-1].isgroup">{{trans.standardPlayers}}</v-subheader>
     <v-subheader v-else-if="index>0 && item.isgroup && !players[index-1].isgroup">{{trans.groupPlayers}}</v-subheader>
     <v-list-tile @click="setPlayer(item.id)" v-bind:class="{'nd-active-player':player && item.id === player.id}" :id="'nd-player-'+index">
@@ -134,87 +163,25 @@ Vue.component('lms-navdrawer', {
     </v-list-tile>
    </template>
 
-   <v-divider v-if="playerSectionsDivider"></v-divider>
   </v-list>
   <v-spacer></v-spacer>
-
-  <div v-if="showShortcuts && !ndSettingsVisible">
-   <v-subheader>{{trans.shortcuts}}</v-subheader>
-   <ul class="nd-shortuts" v-bind:class="{'nd-shortuts-wide':maxWidth>320, 'nd-shortuts-1':2==ndShortcuts}">
-    <li v-for="(item, index) in shortcuts">
-     <v-btn icon class="toolbar-button" @click="show=false; bus.$emit('browse-shortcut', item.id)" v-if="!homeButton || item.id!='-'">
-      <v-icon v-if="undefined!=item.icon">{{item.icon}}</v-icon>
-      <img v-else class="svg-img" :src="item.svg | svgIcon(darkUi)"></img>
-     </v-btn>
-    </li>
-   </ul>
-  </div>
-
-  <div v-if="ndSettingsIcons && !ndSettingsVisible">
-   <v-subheader>{{TB_SETTINGS.title}}</v-subheader>
-   <ul class="nd-shortuts" v-bind:class="{'nd-shortuts-wide':maxWidth>320}">
-    <template v-for="(item, index) in menuItems">
-     <li :title="item.title" v-if="item!=DIVIDER && !item.hdr && (TB_PLAYER_SETTINGS.id==item.id ? (player && connected) : (TB_SERVER_SETTINGS.id!=item.id || (unlockAll && connected)))">
-      <v-btn v-if="TB_APP_SETTINGS.id==item.id" :href="queryParams.appSettings" @click="show=false" icon class="toolbar-button">
-       <img class="svg-img" :src="TB_APP_SETTINGS.svg | svgIcon(darkUi)"></img>
-      </v-btn>
-      <v-btn v-else-if="TB_CUSTOM_SETTINGS_ACTIONS.id!=item.id" icon class="toolbar-button" @click="menuAction(item.id)">
-       <v-icon v-if="undefined!=item.icon">{{item.icon}}</v-icon>
-       <img v-else class="svg-img" :src="item.svg | svgIcon(darkUi)"></img>
-      </v-btn>
-     </li>
-     <template v-if="TB_CUSTOM_SETTINGS_ACTIONS.id==item.id && undefined!=customSettingsActions && customSettingsActions.length>0" v-for="(action, actIndex) in customSettingsActions">
-      <li><v-btn icon class="toolbar-button" @click="doCustomAction(action)" :title="action.title" v-if="action.icon || action.svg">
-       <v-icon v-if="action.icon">{{action.icon}}</v-icon><img v-else class="svg-img" :src="action.svg | svgIcon(darkUi)"></img>
-      </v-btn></li>
-     </template>
-    </template>
-   </ul>
-   <lms-navdrawer-system-entries :view="this" v-if="queryParams.appQuit || showCustomSystemActions" @quit="show=false"></lms-navdrawer-system-entries>
-   <div class="nd-bottom"></div>
-  </div>
-  <v-list class="nd-list py-0" v-else-if="!ndSettingsVisible">
-   <template v-for="(item, index) in menuItems">
-    <v-divider v-if="item===DIVIDER"></v-divider>
-    <v-subheader v-else-if="item.hdr">{{item.title}}</v-subheader>
-    <v-list-tile @click="menuAction(item.id)" v-else-if="(TB_UI_SETTINGS.id==item.id) || (TB_PLAYER_SETTINGS.id==item.id && player && connected) || (TB_SERVER_SETTINGS.id==item.id && unlockAll && connected)">
-     <v-list-tile-avatar><img v-if="item.svg" class="svg-img" :src="item.svg | svgIcon(darkUi)"><v-icon v-else>{{item.icon}}</v-icon></v-list-tile-avatar>
-     <v-list-tile-content>
-      <v-list-tile-title>{{item.stitle ? item.stitle : item.title}}</v-list-tile-title>
-     </v-list-tile-content>
-     <v-list-tile-action v-if="item.shortcut && keyboardControl" class="menu-shortcut">{{item.shortcut}}</v-list-tile-action>
-    </v-list-tile>
-    <v-list-tile v-else-if="TB_APP_SETTINGS.id==item.id" :href="queryParams.appSettings" @click="show=false">
-     <v-list-tile-avatar><img class="svg-img" :src="TB_APP_SETTINGS.svg | svgIcon(darkUi)"></img></v-list-tile-avatar>
-     <v-list-tile-content><v-list-tile-title>{{TB_APP_SETTINGS.stitle}}</v-list-tile-title></v-list-tile-content>
-    </v-list-tile>
-    <template v-else-if="TB_CUSTOM_SETTINGS_ACTIONS.id==item.id && undefined!=customSettingsActions && customSettingsActions.length>0" v-for="(action, actIndex) in customSettingsActions">
-     <v-list-tile @click="doCustomAction(action)">
-      <v-list-tile-avatar><v-icon v-if="action.icon">{{action.icon}}</v-icon><img v-else-if="action.svg" class="svg-img" :src="action.svg | svgIcon(darkUi)"></img></v-list-tile-avatar>
-      <v-list-tile-content><v-list-tile-title>{{action.title}}</v-list-tile-title></v-list-tile-content>
-     </v-list-tile>
-    </template>
-   </template>
-   <lms-navdrawer-system-entries :view="this" v-if="queryParams.appQuit || showCustomSystemActions" @quit="show=false"></lms-navdrawer-system-entries>
-   <div class="nd-bottom"></div>
-  </v-list>
  </div>
 
- <div v-if="ndSettingsVisible" style="height:1px; width:100%; border-top:1px solid var(--list-item-border-color)!important;"></div>
- <div v-if="showShortcuts && ndSettingsVisible">
+ <div style="height:1px; width:100%; border-top:1px solid var(--list-item-border-color)!important;"></div>
+ <div v-if="showShortcuts">
   <v-subheader>{{trans.shortcuts}}</v-subheader>
-  <ul class="nd-shortuts" v-bind:class="{'nd-shortuts-wide':maxWidth>320, 'nd-shortuts-1':2==ndShortcuts}">
+  <ul class="nd-shortcuts" v-bind:class="{'nd-shortcuts-wide':maxWidth>320}">
    <li v-for="(item, index) in shortcuts">
-    <v-btn icon class="toolbar-button" @click="show=false; bus.$emit('browse-shortcut', item.id)" v-if="!homeButton || item.id!='-'">
+    <v-btn icon class="toolbar-button" @click="show=false; bus.$emit('browse-shortcut', item.id)" v-if="!homeButton || item.id!=HOME_SHORTCUT">
      <v-icon v-if="undefined!=item.icon">{{item.icon}}</v-icon>
      <img v-else class="svg-img" :src="item.svg | svgIcon(darkUi)"></img>
     </v-btn>
    </li>
   </ul>
  </div>
- <div v-if="ndSettingsIcons && ndSettingsVisible">
+ <div v-if="settingsIcons">
   <v-subheader>{{TB_SETTINGS.title}}</v-subheader>
-  <ul class="nd-shortuts" v-bind:class="{'nd-shortuts-wide':maxWidth>320}">
+  <ul class="nd-shortcuts" v-bind:class="{'nd-shortcuts-wide':maxWidth>320}">
    <template v-for="(item, index) in menuItems">
     <li :title="item.title" v-if="item!=DIVIDER && !item.hdr && (TB_PLAYER_SETTINGS.id==item.id ? (player && connected) : (TB_SERVER_SETTINGS.id!=item.id || (unlockAll && connected)))">
      <v-btn v-if="TB_APP_SETTINGS.id==item.id" :href="queryParams.appSettings" @click="show=false" icon class="toolbar-button">
@@ -235,7 +202,7 @@ Vue.component('lms-navdrawer', {
   <lms-navdrawer-system-entries :view="this" v-if="queryParams.appQuit || showCustomSystemActions" @quit="show=false"></lms-navdrawer-system-entries>
   <div class="nd-bottom"></div>
  </div>
- <v-list class="nd-list py-0" v-else-if="ndSettingsVisible">
+ <v-list class="nd-list py-0" v-else>
   <template v-for="(item, index) in menuItems">
    <v-divider v-if="item===DIVIDER"></v-divider>
    <v-subheader v-else-if="item.hdr">{{item.title}}</v-subheader>
@@ -267,17 +234,21 @@ Vue.component('lms-navdrawer', {
         return {
             show: false,
             showMenu: false,
-            trans:{groupPlayers:undefined, standardPlayers:undefined, connectionLost:undefined, updatesAvailable:undefined, restartRequired:undefined, shortcuts:undefined },
+            trans:{groupPlayers:undefined, standardPlayers:undefined, connectionLost:undefined, updatesAvailable:undefined, restartRequired:undefined,
+                   shortcuts:undefined, generalUser: undefined, unknownUser:undefined },
             menuItems: [],
             shortcuts: [],
+            users: [],
             customSystemActions:undefined,
             customSettingsActions:undefined,
             customPlayerActions:undefined,
             playerStatus: { ison: 1, isplaying: false, volume: 0, synced: false, sleepTime: undefined, count:0, alarm: undefined, alarmStr: undefined },
             appLaunchPlayer: queryParams.appLaunchPlayer,
             maxWidth: 300,
+            height: 50,
             connected: true,
-            windowControlsOnLeft: false
+            windowControlsOnLeft: false,
+            showAllPlayers: false
         }
     },
     created() {
@@ -292,11 +263,12 @@ Vue.component('lms-navdrawer', {
             this.updateShortcuts(view);
         }.bind(this));
         this.initItems();
+        this.showAllPlayers = getLocalStorageBool('nd-showAllPlayers', this.showAllPlayers);
         bus.$on('navDrawer', function() {
             this.show = true;
             addBrowserHistoryItem();
             if (this.$store.state.player) {
-                for (let i=0, loop=this.$store.state.players, len=loop.length; i<len; ++i) {
+                for (let i=0, loop=this.visiblePlayers, len=loop.length; i<len; ++i) {
                     if (loop[i].id==this.$store.state.player.id) {
                         let list = document.getElementById('nd-list', 0);
                         if (i<2) {
@@ -320,6 +292,10 @@ Vue.component('lms-navdrawer', {
         this.maxWidth = window.innerWidth>500 ? 400 : 300;
         bus.$on('windowWidthChanged', function() {
             this.maxWidth = window.innerWidth>500 ? 400 : 300;
+        }.bind(this));
+        this.height = Math.floor(window.innerHeight/20)*20;
+        bus.$on('windowHeightChanged', function() {
+            this.height = Math.floor(window.innerHeight/20)*20;
         }.bind(this));
         bus.$on('customActions', function() {
             if (undefined==this.customSettingsActions) {
@@ -420,7 +396,8 @@ Vue.component('lms-navdrawer', {
             TB_START_PLAYER.title=i18n('Start player');
             TB_APP_QUIT.title=i18n('Quit');
             this.trans = { groupPlayers:i18n("Group Players"), standardPlayers:i18n("Standard Players"), connectionLost:i18n('Server connection lost!'),
-                           updatesAvailable:i18n('Updates available'), restartRequired:i18n('Restart required'), shortcuts:i18n('Shortcuts') };
+                           updatesAvailable:i18n('Updates available'), restartRequired:i18n('Restart required'), shortcuts:i18n('Shortcuts'),
+                           generalUser:"LYRION", unknownUser:i18n("Unknown") };
             if (LMS_KIOSK_MODE) {
                 this.menuItems = []
             } else {
@@ -447,8 +424,11 @@ Vue.component('lms-navdrawer', {
                         this.shortcuts.push({id:item.id, icon:item.icon, svg:item.svg});
                     }
                 }
+                if (!this.$store.state.browseSearch) {
+                    this.shortcuts.unshift({id:SEARCH_SHORTCUT, svg:ACTIONS[SEARCH_LIB_ACTION].svg});
+                }
                 if (this.shortcuts.length>0) {
-                    this.shortcuts.unshift({id:'-', icon:'home'});
+                    this.shortcuts.unshift({id:HOME_SHORTCUT, icon:'home'});
                 }
             }
         },
@@ -474,9 +454,11 @@ Vue.component('lms-navdrawer', {
         },
         powerAll(state) {
             this.$store.state.players.forEach(p => {
-                lmsCommand(p.id, ['power', state]).then(({d}) => { 
-                    bus.$emit('updatePlayer', p.id);
-                })
+                if (p.enabled) {
+                    lmsCommand(p.id, ['power', state]).then(({d}) => { 
+                        bus.$emit('updatePlayer', p.id);
+                    })
+                }
             });
         },
         managePlayers(longPress, el, event) {
@@ -566,12 +548,12 @@ Vue.component('lms-navdrawer', {
             event.preventDefault();
             event.stopPropagation();
             let idx = parseInt(el.id.split("-")[0]);
-            if (idx>=0 && idx<=this.$store.state.players.length) {
+            if (idx>=0 && idx<=this.visiblePlayers.length) {
                 if (longPress) {
                     this.show = false;
-                    bus.$emit('dlg.open', 'sync', this.$store.state.players[idx]);
+                    bus.$emit('dlg.open', 'sync', this.visiblePlayers[idx]);
                 } else {
-                    this.setPlayer(this.$store.state.players[idx].id);
+                    this.setPlayer(this.visiblePlayers[idx].id);
                 }
             }
         },
@@ -583,8 +565,8 @@ Vue.component('lms-navdrawer', {
                 return;
             }
             let idx = parseInt(el.id.split("-")[0]);
-            if (idx>=0 && idx<=this.$store.state.players.length) {
-                this.togglePlayerPower(this.$store.state.players[idx], longPress);
+            if (idx>=0 && idx<=this.visiblePlayers.length) {
+                this.togglePlayerPower(this.visiblePlayers[idx], longPress);
             }
         },
         clickLogo(longPress, el, event) {
@@ -651,6 +633,20 @@ Vue.component('lms-navdrawer', {
                 this.statusTimer = undefined;
             }
         },
+        switchUser(user) {
+            if (user.id!=this.$store.state.user.id) {
+                this.$store.commit('setUser', user);
+            }
+        },
+        toggleShowAllPlayers() {
+            this.showAllPlayers=!this.showAllPlayers;
+            setLocalStorageVal("nd-showAllPlayers", this.showAllPlayers);
+        },
+        configurePlayerList(event) {
+            this.show=false;
+            storeClickOrTouchPos(event, this.menu);
+            bus.$emit('dlg.open', 'playerlist');
+        }
     },
     computed: {
         darkUi () {
@@ -662,11 +658,32 @@ Vue.component('lms-navdrawer', {
         players () {
             return this.$store.state.players
         },
+        visiblePlayers () {
+            return this.showAllPlayers ? this.players : this.enabledPlayers
+        },
+        enabledPlayers () {
+            if (!this.$store.state.players) {
+                return this.$store.state.players;
+            }
+            return this.$store.state.players.filter((item) => {
+                return item.enabled;
+            });
+        },
         otherPlayers () {
             return this.$store.state.otherPlayers
         },
         multipleStandardPlayers () {
-            return this.$store.state.players && this.$store.state.players.length>1 && !this.$store.state.players[1].isgroup
+            let playerList = this.enabledPlayers
+            return playerList && playerList.length>1 && !playerList[1].isgroup
+        },
+        numPlayers() {
+            return this.$store.state.players ? this.$store.state.players.length : 0
+        },
+        numEnabledPlayers() {
+            return this.enabledPlayers ? this.enabledPlayers.length : 0
+        },
+        enableMenuButton() {
+            return this.numPlayers>1 || LMS_P_USERS
         },
         noPlayer () {
             return !this.$store.state.players || this.$store.state.players.length<1
@@ -695,9 +712,6 @@ Vue.component('lms-navdrawer', {
         playersDivider() {
             return this.showManagePlayers || (undefined!=this.appLaunchPlayer && !this.haveLocalPlayer) || this.showCustomActions
         },
-        playerSectionsDivider() {
-            return !this.ndSettingsVisible && !this.noPlayer && this.players && (this.players.length>1 || this.playerStatus.sleepTime || this.playerStatus.alarmStr)
-        },
         haveLocalPlayer() {
             return this.$store.state.haveLocalPlayer
         },
@@ -707,14 +721,32 @@ Vue.component('lms-navdrawer', {
         ndShortcuts() {
             return this.$store.state.ndShortcuts
         },
-        ndSettingsIcons() {
-            return this.$store.state.ndSettingsIcons
-        },
-        ndSettingsVisible() {
-            return this.$store.state.ndSettingsVisible
+        settingsIcons() {
+            let playerList = this.visiblePlayers
+            let haveGroup = playerList && playerList.length>0 && playerList[playerList.length-1].isgroup;
+            let settingsCount = this.menuItems.length+(this.customSettingsActions ? this.customSettingsActions.length : 0);
+            let settingsHeight = (settingsCount + 1) * 48;
+            let numPlayers = (playerList ? playerList.length : 0);
+            let playerheight = ((numPlayers + (this.showManagePlayers ? 1 : 0)) * 48) + (haveGroup ? 72 : 0) /*titles*/;
+            let shortcutHeight = this.showShortcuts ? 100 : 0;
+            let minPlayerHeight = Math.max(4*48, playerheight) + 24 /*padding*/;
+            return (this.height-(queryParams.topPad+queryParams.botPad+settingsHeight+shortcutHeight))<minPlayerHeight;
         },
         homeButton() {
             return this.$store.state.homeButton
+        },
+        userName() {
+            return this.$store.state.user.id==-1 ? this.trans.generalUser : undefined==this.$store.state.user.name ? this.trans.unknownUser : this.$store.state.user.name
+        },
+        userAvatar() {
+            return this.$store.state.user.id==-1
+                       ? {svg:'lyrion-icon'}
+                       : this.$store.state.user.avatar
+                          ? {img:this.$store.state.user.avatar}
+                          : {icon:'person'}
+        },
+        haveUsers() {
+            return LMS_P_USERS && this.users.length>0
         }
     },
     filters: {
@@ -741,6 +773,19 @@ Vue.component('lms-navdrawer', {
         },
         'showMenu': function(val) {
             this.$store.commit('menuVisible', {name:'navdrawer-title', shown:val});
+            if (val) {
+                lmsCommand("", ["users", "list"]).then(({data}) => {
+                    this.users = [];
+                    if (data && data.result && data.result.users_loop && data.result.users_loop.length>0) {
+                        for (let i=0, list=data.result.users_loop, len=list.length; i<len; ++i) {
+                            this.users.push({id:parseInt(list[i].id), name:list[i].name, avatar:list[i].avatar, icon:'person'});
+                        }
+                        this.users.sort(nameSort);
+                        this.users.unshift({id:-1, name:this.trans.generalUser, svg:'lyrion-icon'});
+                    }
+                }).catch(err => {
+                });
+            }
         }
     },
     beforeDestroy() {

@@ -25,8 +25,8 @@ use Slim::Utils::Strings qw(string cstring);
 use HTTP::Status qw(RC_NOT_FOUND RC_OK);
 use File::Basename;
 use File::Slurp qw(read_file);
-use List::Util qw(shuffle);
-use File::Spec::Functions qw(catdir);
+use List::Util qw(shuffle max);
+use File::Spec::Functions qw(catdir catfile);
 use File::Path qw(make_path);
 use Scalar::Util qw(looks_like_number);
 use URI::Escape qw(uri_unescape);
@@ -63,6 +63,7 @@ my @listOfRoles = ();
 use constant RANDOM_MIX_EXT => '.mix';
 use constant NUM_HOME_ITEMS => 10;
 use constant PLAYLIST_IMAGE_TRACKS => 20;
+use constant MAX_PLAYER_AGE => 14 * 24 * 60 * 60;
 
 my $LASTFM_API_KEY = '5a854b839b10f8d46e630e8287c2299b';
 my $MAX_CACHE_AGE = 90*24*60*60; # 90 days
@@ -104,7 +105,7 @@ my %IGNORE_PROTOCOLS = map { $_ => 1 } ('mms', 'file', 'tmp', 'http', 'https', '
 
 my %RADIO_PROTOCOLS = map { $_ => 1 } ('http', 'https', 'accur', 'cplus', 'globalplayer', 'newsuk', 'pr', 'radioparadise', 'rnp', 'sounds', 'times', 'virgin', 'sxm');
 
-my @BOOL_OPTS = ('allowDownload', 'playShuffle', 'touchLinks', 'showAllArtists', 'artistFirst', 'yearInSub', 'showComment', 'genreImages', 'playlistImages', 'maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'combineAppsAndRadio', 'useGrouping');
+my @BOOL_OPTS = ('allowDownload', 'playShuffle', 'touchLinks', 'showAllArtists', 'artistFirst', 'yearInSub', 'showComment', 'genreImages', 'playlistImages', 'maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'combineAppsAndRadio', 'useGrouping', 'setPlayerLibrary');
 
 my %ROLE_ICON_MAP = (
     'bass' => 'bassist',
@@ -232,7 +233,8 @@ sub initPlugin {
             screensaverTimeout => 60,
             npSwitchTimeout => 5*60,
             useDefaultForSettings => 0,
-            useGrouping => 1
+            useGrouping => 1,
+            setPlayerLibrary => 0
         });
     } else {
         $prefs->init({
@@ -263,7 +265,8 @@ sub initPlugin {
             screensaverTimeout => 60,
             npSwitchTimeout => 5*60,
             useDefaultForSettings => 0,
-            useGrouping => 1
+            useGrouping => 1,
+            setPlayerLibrary => 0
         });
     }
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'maiComposer');
@@ -283,6 +286,8 @@ sub initPlugin {
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'allowDownload');
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'useDefaultForSettings');
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'useGrouping');
+    $prefs->setChange(sub { $prefs->set($_[0], 0) unless $_[1]; }, 'setPlayerLibrary');
+
 
     if (main::WEBUI) {
         require Plugins::MaterialSkin::Settings;
@@ -338,11 +343,12 @@ sub initPlugin {
     if (Slim::Utils::Versions->compareVersions($::VERSION, '8.4.0') < 0) {
         Slim::Utils::Timers::setTimer(undef, Time::HiRes::time() + 15, \&_checkUpdates);
     }
+    Slim::Control::Request::subscribe(\&_playQueueCleared, [['playlist'], ['clear']]);
 }
 
-#sub shutdownPlugin {
-#    Slim::Control::Request::unsubscribe(\&_playQueueCleared);
-#}
+sub shutdownPlugin {
+    Slim::Control::Request::unsubscribe(\&_playQueueCleared);
+}
 
 sub getPluginVersion {
     return $pluginVersion;
@@ -589,6 +595,26 @@ sub signalHomeExtraUpdate {
 #    }
 #}
 
+sub _playQueueCleared {
+    my $request = shift;
+    my $client  = $request->client();
+    if (!$client || !$prefs->get('setPlayerLibrary')) {
+        return;
+    }
+
+    my $prevLib = $prefs->client($client)->get('libraryId');
+    if ($prevLib) {
+        my $currentLib = $serverprefs->client($client)->get('libraryId');
+        if ($currentLib ne $prevLib) {
+            main::DEBUGLOG && $log->debug("Restore lib id ${prevLib}");
+            $serverprefs->client($client)->set('libraryId', $prevLib);
+            $serverprefs->client($client)->remove('libraryId') unless $prevLib;
+            Slim::Utils::Timers::setTimer($client, Time::HiRes::time() + 0.1, sub {Slim::Schema->totals($client);});
+        }
+        $prefs->client($client)->remove('libraryId');
+    }
+}
+
 sub _getUrlQueryParam {
     my $uri = shift;
     my $key = shift;
@@ -720,12 +746,14 @@ sub _cliCommand {
     }
 
     my $cmd = $request->getParam('_cmd');
+    #main::DEBUGLOG && $log->debug("command: ${cmd}");
     if ($request->paramUndefinedOrNotOneOf($cmd, ['prefs', 'info', 'transferqueue', 'delete-favorite', 'map', 'resolve', 'delete-podcast',
                                                   'plugins', 'plugins-status', 'plugins-update', 'extras', 'delete-vlib', 'pass-isset',
                                                   'pass-check', 'browsemodes', 'geturl', 'command', 'scantypes', 'server', 'themes',
                                                   'playersettings', 'activeplayers', 'urls', 'adv-search', 'adv-search-params', 'protocols',
                                                   'players-extra-info', 'sort-playlist', 'mixer', 'release-types', 'check-for-updates',
-                                                  'similar', 'apps', 'rndmix', 'scan-progress', 'send-notif', 'home-extra', 'home-extra-3rdparty']) ) {
+                                                  'similar', 'apps', 'rndmix', 'scan-progress', 'send-notif', 'home-extra',
+                                                  'home-extra-3rdparty', 'player-list']) ) {
         $request->setStatusBadParams();
         return;
     }
@@ -761,6 +789,7 @@ sub _cliCommand {
         $request->addResult('npSwitchTimeout', $prefs->get('npSwitchTimeout'));
         $request->addResult('useDefaultForSettings', $prefs->get('useDefaultForSettings'));
         $request->addResult('useGrouping', $prefs->get('useGrouping'));
+        $request->addResult('setPlayerLibrary', $prefs->get('setPlayerLibrary'));
         $request->setStatusDone();
         return;
     }
@@ -2020,6 +2049,60 @@ sub _cliCommand {
         $request->setStatusDone();
         return;
     }
+
+    if ($cmd eq 'player-list') {
+        main::DEBUGLOG && $log->debug("Get player list");
+        my $now = time();
+        my $cnt = 0;
+
+        my %eventTimeStamps = (
+            _ts_currentSong => 1,
+            _ts_maxBitrate => 1,
+            _ts_model => 1,
+            _ts_modelName => 1,
+            _ts_playername => 1,
+            _ts_power => 1,
+            _ts_repeat => 1,
+            _ts_shuffle => 1,
+            _ts_volume => 1,
+        );
+
+        foreach my $clientPrefs ($serverprefs->allClients) {
+            my $id = $clientPrefs->{clientid};
+            my $client = Slim::Player::Client::getClient($id);
+            my $clientPrefs = Slim::Utils::Prefs::Client->new($serverprefs, $id, 'nomigrate');
+            my $name = $clientPrefs->get('playername');
+            my $model = $client ? $client->model : $clientPrefs->get('model');
+
+            my $ts = 0;
+            foreach (keys %{ $clientPrefs->{prefs} }) {
+                next unless $eventTimeStamps{$_};
+                $ts = max($ts, $clientPrefs->{prefs}->{$_});
+            }
+
+            # check potential saved queue/playlist
+            my $playlistId = $id;
+            $playlistId =~ s/://g;
+            my $playlistPath = catfile(scalar Slim::Utils::OSDetect::dirsFor('prefs'), "clientplaylist_$playlistId.m3u");
+            my @stat = stat $playlistPath;
+            $ts = max($ts, $stat[9]) if scalar @stat;
+
+            if (!$client && ($now - $ts) > MAX_PLAYER_AGE) {
+                next;
+            }
+
+            $request->addResultLoop("players_loop", $cnt, "id", $id);
+            $request->addResultLoop("players_loop", $cnt, "name", $name);
+            $request->addResultLoop("players_loop", $cnt, "model", $model);
+            $request->addResultLoop("players_loop", $cnt, "ts", $ts);
+            $request->addResultLoop("players_loop", $cnt, "connected", $client ? 1 : 0);
+            $cnt+=1;
+        }
+        main::DEBUGLOG && $log->debug("Player list finished");
+        $request->setStatusDone();
+        return;
+    }
+
     $request->setStatusBadParams();
 }
 
@@ -2027,6 +2110,8 @@ sub _handleHomeExtraCmd {
     my $request = shift;
     $request->setStatusProcessing();
     my $count = $request->getParam('count');
+    my $libId = $request->getParam('library_id');
+    my $userId = $request->getParam('user_id');
 
     my @albumsorts = ();
     if (!$count || $count<NUM_HOME_ITEMS) {
@@ -2068,13 +2153,15 @@ sub _handleHomeExtraCmd {
     $request->addResult("material_home", 1);
     if (scalar(@albumsorts)>0) {
         my $total = 0;
-        my $libId = $request->getParam('library_id');
         foreach my $srt ( @albumsorts ) {
             my $isRandom = $srt eq "random" ? 1 : 0;
             my $reqCount = $isRandom ? 300 : $count;
             my @cmd = ("albums", 0, $reqCount, "tags:aajlqswyKSS24WE", "sort:${srt}");
             if ($libId) {
                 push(@cmd, "library_id:${libId}");
+            }
+            if ($userId) {
+                push(@cmd, "user_id:${userId}");
             }
             my $req = Slim::Control::Request::executeRequest(undef, \@cmd);
             my $cnt = 0;
@@ -2090,7 +2177,6 @@ sub _handleHomeExtraCmd {
     }
     if (scalar(@artistsorts)>0) {
         my $total = 0;
-        my $libId = $request->getParam('library_id');
         my @roles;
         if ($serverprefs->get('useUnifiedArtistsList')) {
             @roles = Slim::Schema::Contributor->activeContributorRoles(1);
@@ -2102,6 +2188,9 @@ sub _handleHomeExtraCmd {
             my @cmd = ("artists", 0, $count, "tags:4s", "sort:${srt}", "include_online_only_artists:1", $rolesParam);
             if ($libId) {
                 push(@cmd, "library_id:${libId}");
+            }
+            if ($userId) {
+                push(@cmd, "user_id:${userId}");
             }
             my $req = Slim::Control::Request::executeRequest(undef, \@cmd);
             my $cnt = 0;
@@ -2117,6 +2206,9 @@ sub _handleHomeExtraCmd {
     }
     if ($request->getParam('radios')) {
         my @cmd = ("material-skin-query", "radios", 0, $count+1);
+        if ($userId) {
+            push(@cmd, "user_id:${userId}");
+        }
         my $req = Slim::Control::Request::executeRequest(undef, \@cmd);
         my $cnt = 0;
         foreach my $item ( @{ $req->getResult('radios_loop') || [] } ) {
@@ -2129,11 +2221,17 @@ sub _handleHomeExtraCmd {
     }
     if ($request->getParam('favorites')) {
         my @cmd = ("favorites", "items", 0, $count, "menu:favorites", "menu:1");
+        if ($userId) {
+            push(@cmd, "user_id:${userId}");
+        }
         my $req = Slim::Control::Request::executeRequest(undef, \@cmd);
         $request->addResult("material_home_favorites_obj", $req->getResults());
     }
     if ($request->getParam('playlists')) {
         my @cmd = ("material-skin-query", "playlists", 0, $count+1, "tags:suxE", "menu:1");
+        if ($userId) {
+            push(@cmd, "user_id:${userId}");
+        }
         my $req = Slim::Control::Request::executeRequest(undef, \@cmd);
         my $cnt = 0;
         foreach my $item ( @{ $req->getResult('playlists_loop') || [] } ) {
@@ -2231,6 +2329,7 @@ sub _cliCommandQuery {
     # List of favourites, but streams only - no artists, albums, folders, etc.
     if ($cmd eq 'radios') {
         my $feed = Slim::Plugin::Favorites::OpmlFavorites->new($request->client)->xmlbrowser(0);
+        # TODO: user_id
         _traverseFavoritesTree($request, $feed, 0);
         $request->setStatusDone();
         return;
@@ -2244,12 +2343,20 @@ sub _cliCommandQuery {
     #
     if ($cmd eq 'playlists') {
         my $folder = $request->getParam('folder_id');
+        my $userId = $request->getParam('user_id');
+        my $search = $request->getParam('search');
         my $tags = $request->getParam('tags');
         my $index  = $request->getParam('_index');
         my $quantity = $request->getParam('_quantity');
         my @plcmd = ("playlists", $index, $quantity, "tags:${tags}");
         if ($folder) {
             push(@plcmd, "folder_id:${folder}")
+        }
+        if ($search) {
+            push(@plcmd, "search:${search}")
+        }
+        if ($userId) {
+            push(@plcmd, "user_id:${userId}");
         }
 
         my @keys = ("id", "playlist", "textkey", "extid", "url");
@@ -2417,6 +2524,20 @@ sub _cliClientCommand {
 
     if ($cmd eq 'set-lib') {
         my $id = $request->getParam('id');
+        if ($request->getParam('store')) {
+            my $prev = $serverprefs->client($client)->get('libraryId');
+            if ($prev) {
+                main::DEBUGLOG && $log->debug("Save prev lib id of ${prev}");
+                $prefs->client($client)->set('libraryId', $prev);
+            }
+        }
+
+        if (!$id && $request->getParam('restore')) {
+            $id = $prefs->client($client)->get('libraryId');
+            main::DEBUGLOG && $log->debug("Read prev lib id ${id}");
+        }
+
+        main::DEBUGLOG && $log->debug("Set lib id ${id}");
         $serverprefs->client($client)->set('libraryId', $id);
         $serverprefs->client($client)->remove('libraryId') unless $id;
         Slim::Utils::Timers::setTimer($client, Time::HiRes::time() + 0.1, sub {Slim::Schema->totals($client);});

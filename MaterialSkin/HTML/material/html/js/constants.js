@@ -77,7 +77,7 @@ const LMS_LIGHT_SVG = "333";
 const LMS_UPDATE_SVG = "74bf43";
 const LMS_SEARCH_LIMIT = 500;
 const LMS_INITIAL_SEARCH_RESULTS = 10;
-const LMS_MIN_DESKTOP_WIDTH = 750;
+const LMS_MIN_DESKTOP_WIDTH = 600;
 const LMS_MIN_NP_LARGE_INFO_HEIGHT = 250;
 const LMS_AUTO_SHOW_HOME_BUTTON_MIN_WIDTH = 600;
 
@@ -141,8 +141,9 @@ const HIDE_TOP_FOR_PARTY = new Set([TOP_EXTRAS_ID, TOP_RADIO_ID, TOP_REMOTE_ID, 
 const MUSIC_ID_PREFIX = "mm:/";
 const MYMUSIC_WORKS_PREFIX = "mmw:";
 const COMPILATIONS_ID = MUSIC_ID_PREFIX+"myMusicAlbumsVariousArtists";
-const SEARCH_ID = MUSIC_ID_PREFIX+"lms-local-search";
-const ADV_SEARCH_ID = MUSIC_ID_PREFIX+"lms-adv-search";
+const SEARCH_ID_PREFIX = MUSIC_ID_PREFIX+"lms-search-";
+const SEARCH_ID = SEARCH_ID_PREFIX+"local";
+const ADV_SEARCH_ID = SEARCH_ID_PREFIX+"advanced";
 const GENRES_ID = MUSIC_ID_PREFIX+"genres";
 const YEARS_ID = MUSIC_ID_PREFIX+"years";
 const RANDOM_MIX_ID = MUSIC_ID_PREFIX+"randomMix";
@@ -207,7 +208,7 @@ const IFRAME_HOME_NAVIGATES_BROWSE_HOME = 1
 const IFRAME_HOME_CLOSES_DIALOGS = 2
 
 const SKIN_GENRE_TAGS = ['composer', 'conductor', 'band'];
-const SKIN_BOOL_OPTS = ['maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'showAllArtists', 'artistFirst', IS_IOS ? 'xx' : 'allowDownload', 'showComment', 'noArtistFilter', 'genreImages', 'playlistImages', 'touchLinks', 'yearInSub', 'playShuffle', 'combineAppsAndRadio', 'useGrouping'];
+const SKIN_BOOL_OPTS = ['maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'showAllArtists', 'artistFirst', IS_IOS ? 'xx' : 'allowDownload', 'showComment', 'noArtistFilter', 'genreImages', 'playlistImages', 'touchLinks', 'yearInSub', 'playShuffle', 'combineAppsAndRadio', 'useGrouping', 'setPlayerLibrary'];
 const SKIN_INT_OPTS = ['showComposer', 'respectFixedVol', 'commentAsDiscTitle', 'pagedBatchSize', 'screensaverTimeout', 'npSwitchTimeout', 'useDefaultForSettings'];
 
 const MSK_REV_SORT_OPT = "msk-revsort:1";
@@ -284,3 +285,6 @@ const SEARCH_WORKS_CAT = 3;
 const SEARCH_TRACKS_CAT = 4;
 const SEARCH_PLAYLISTS_CAT = 5;
 const SEARCH_OTHER_CAT = 6;
+
+const HOME_SHORTCUT = "-h";
+const SEARCH_SHORTCUT = "-s";
