@@ -12,7 +12,7 @@ Vue.component('lms-playerlist-dialog', {
  <v-card>
   <v-card-title>{{i18n("Player list")}}</v-card-title>
   <v-list-tile-sub-title style="padding-left:16px;padding-right:16px">{{i18n("Select favorite players, these will always be visible (if connected). Use drag'n'drop to change order.")}}</v-list-tile-sub-title>
-  <v-list class="dialog-main-list">
+  <v-list class="dialog-main-list" id="playerlist-dialog-list">
    <template v-for="(item, index) in players" :key="item.id">
     <v-subheader v-if="index==0 && players.length>1 && players[players.length-1].isgroup">
      {{i18n("Standard Players")}}
@@ -21,7 +21,7 @@ Vue.component('lms-playerlist-dialog', {
      {{i18n("Group Players")}}
     </v-subheader>
     <v-list-tile class="settings-list-thin-item" @dragstart.native="dragStart(index, $event)" @dragenter.prevent="" @dragend.native="dragEnd()" @dragover.native="dragOver(index, $event)" @drop.native="drop(index, $event)" draggable v-bind:class="{'highlight-drop':dropIndex==index, 'highlight-drag':dragIndex==index&&!show}">
-     <v-checkbox v-model="item.enabled" style="display:flex" :id="item.id" :disabled="item.id==currentPlayer&&item.enabled">
+     <v-checkbox v-model="item.enabled" style="display:flex" :id="'pld-'+item.id" :disabled="item.id==currentPlayer&&item.enabled">
       <template v-slot:label>
        <v-list-tile-avatar v-bind:class="{'dimmed':item.disconnected}">
         <v-icon v-if="undefined!=item.icon.icon">{{item.icon.icon}}</v-icon>
@@ -76,7 +76,7 @@ Vue.component('lms-playerlist-dialog', {
             let ids = new Set();
             this.players = [];
             for (let p=0, loop=this.$store.state.players, len=loop.length; p<len; ++p) {
-                this.players.push(loop[p]);
+                this.players.push(JSON.parse(JSON.stringify(loop[p])));
                 ids.add(loop[p].id);
             }
             this.alpha=lmsOptions.playersAlphaSort;
@@ -150,6 +150,12 @@ Vue.component('lms-playerlist-dialog', {
         dragStart(which, ev) {
             ev.dataTransfer.dropEffect = 'move';
             ev.dataTransfer.setData('text/plain', "dth:"+which);
+            let er = ev.srcElement.getBoundingClientRect();
+            let lr = document.getElementById("playerlist-dialog-list").getBoundingClientRect();
+            if (er.y<lr.y || (er.y+er.height)>(lr.y+lr.height)) {
+                ev.srcElement.scrollIntoView();
+            }
+            ev.dataTransfer.setDragImage(ev.srcElement, 0, 0);
             this.dragIndex = which;
             this.dropIndex = undefined;
         },
