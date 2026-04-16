@@ -324,6 +324,14 @@ function browseHandleListResponse(view, item, command, resp, prevPage, appendIte
     if (resp && resp.items) {
         if (appendItems) {
             view.items.push.apply(view.items, resp.items);
+            if (view.listSize!=resp.listSize) {
+                view.listSize=resp.listSize;
+                if (resp.subtitle) {
+                    view.headerSubTitle=resp.subtitle;
+                } else {
+                    view.headerSubTitle=0==view.listSize ? i18n("Empty") : i18np("1 Item", "%1 Items", view.listSize);
+                }
+            }
             if (view.grid.use) {
                 view.$nextTick(function () {
                     view.setBgndCover();
@@ -762,9 +770,9 @@ function browseHandleListResponse(view, item, command, resp, prevPage, appendIte
                 view.headerSubTitle = undefined;
             }
         } else if (resp.subtitle) {
-            view.headerSubTitle=resp.subtitle
+            view.headerSubTitle=resp.subtitle;
         } else {
-            view.headerSubTitle=0==view.items.length ? i18n("Empty") : i18np("1 Item", "%1 Items", view.items.length);
+            view.headerSubTitle=0==view.listSize ? i18n("Empty") : i18np("1 Item", "%1 Items", view.listSize);
         }
         // In party mode only want to allow to add tracks.
         if (queryParams.party) {
