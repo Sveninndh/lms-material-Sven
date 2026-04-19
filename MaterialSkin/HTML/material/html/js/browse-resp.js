@@ -91,6 +91,13 @@ function parseBrowseResp(data, parent, options, cacheKey) {
         var command = data && data.params && data.params.length>1 && data.params[1] && data.params[1].length>1 ? data.params[1][0] : undefined;
         var isMusicIpMoods = command == "musicip" && data.params[1].length>0 && data.params[1][1]=="moods";
         var textKeys = new Set();
+        var startIndex = 0;
+        try {
+            startIndex = parseInt(data.result.offset);
+        } catch(e) { }
+        if (isNaN(startIndex)) {
+            startIndex = 0;
+        }
 
         if (isMusicIpMoods && data.result.item_loop) {
             for (var idx=0, loop=data.result.item_loop, loopLen=loop.length; idx<loopLen; ++idx) {
@@ -666,7 +673,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                 if (!isFavorites && !isAppsTop && !isPodcastList && !isRadiosTop) {
                     var key = removeDiactrics(i.textkey);
                     if (undefined!=key && (resp.jumplist.length==0 || resp.jumplist[resp.jumplist.length-1].key!=key) && !textKeys.has(key)) {
-                        resp.jumplist.push({key: key, index: resp.items.length});
+                        resp.jumplist.push({key: key, index: startIndex+resp.items.length});
                         textKeys.add(key);
                     }
                 }
@@ -981,25 +988,27 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                             }
                         }
                     }
-
-                    if (0==resp.listSize) {
+                    // TODO: If using paging/infinit-scroll and pervious chunk had headers then itemCount wil be wrong!
+                    //       Likewise if this wias all tracks/albums/artists this will also be broken.
+                    let itemCount = startIndex + (resp.items.length-((categories.size>1 ? categories.size : 0) + numHeaders));
+                    if (0==itemCount) {
                         resp.subtitle=i18n("Empty");
                     } else if (isAppsTop) {
-                        resp.subtitle=i18np("1 App", "%1 Apps", resp.listSize-(categories.size>1 ? categories.size : 0));
+                        resp.subtitle=i18np("1 App", "%1 Apps", itemCount);
                     } else if (STD_ITEM_ONLINE_ALBUM==parentType) {
                         let totalDurationStr=formatSeconds(totalDuration);
                         if (undefined!=parentType) {
-                            resp.subtitle=resp.listSize+'<obj class="mat-icon music-note">music_note</obj>'+totalDurationStr;
-                            resp.plainsubtitle=i18np("1 Track", "%1 Tracks", resp.listSize-numHeaders)+SEPARATOR+totalDurationStr;
+                            resp.subtitle=itemCount+'<obj class="mat-icon music-note">music_note</obj>'+totalDurationStr;
+                            resp.plainsubtitle=i18np("1 Track", "%1 Tracks", itemCount)+SEPARATOR+totalDurationStr;
                         } else {
-                            resp.subtitle=i18np("1 Track", "%1 Tracks", resp.listSize-numHeaders)+SEPARATOR+totalDurationStr;
+                            resp.subtitle=i18np("1 Track", "%1 Tracks", itemCount)+SEPARATOR+totalDurationStr;
                         }
                     } else if (metadataTypes.size==1 && metadataTypes.has("artist")) {
-                        resp.subtitle=i18np("1 Artist", "%1 Artists", resp.listSize-numHeaders);
+                        resp.subtitle=i18np("1 Artist", "%1 Artists", itemCount);
                     } else if (metadataTypes.size==1 && metadataTypes.has("album")) {
-                        resp.subtitle=lmsOptions.supportReleaseTypes ? i18np("1 Release", "%1 Releases", resp.listSize-numHeaders) : i18np("1 Album", "%1 Albums", resp.listSize);
-                    } else if (numTracks==resp.listSize) {
-                        resp.subtitle=i18np("1 Track", "%1 Tracks", resp.listSize-numHeaders);
+                        resp.subtitle=lmsOptions.supportReleaseTypes ? i18np("1 Release", "%1 Releases", itemCount) : i18np("1 Album", "%1 Albums", itemCount);
+                    } else if (numTracks==itemCount) {
+                        resp.subtitle=i18np("1 Track", "%1 Tracks", itemCount);
                         // Check if all tracks have same subtitle, and if so remove
                         if (numTracks>1 && numTracks<500) {
                             let subs = new Set();
@@ -1013,7 +1022,10 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                             }
                         }
                     } else {
-                        resp.subtitle=i18np("1 Item", "%1 Items", resp.listSize-numHeaders);
+                        resp.subtitle=i18np("1 Item", "%1 Items", itemCount);
+                    }
+                    if (0!=itemCount && (itemCount+numHeaders)<resp.listSize) {
+                        resp.subtitle+='<obj style="opacity:0.7">&nbsp;' + i18n("(Scroll for more)")+"</obj>";
                     }
                 }
             }
@@ -1042,7 +1054,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                 var i = loop[idx];
                 var key = removeDiactrics(i.textkey);
                 if (undefined!=key && (resp.jumplist.length==0 || resp.jumplist[resp.jumplist.length-1].key!=key) && !textKeys.has(key)) {
-                    resp.jumplist.push({key: key, index: resp.items.length});
+                    resp.jumplist.push({key: key, index: startIndex+resp.items.length});
                     textKeys.add(key);
                 }
                 let image = undefined!=i.portraitid && "/contributor/" + i.portraitid + "/image" + LMS_LIST_IMAGE_SIZE;
@@ -1311,7 +1323,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                         resp.jumplist.push({key:SECTION_JUMP, index:start-1, header:true, icon:icon});
                         for (let a=0, alen=alist.length; a<alen; ++a) {
                             if (undefined!=alist[a].textkey && (jl.length==0 || jl[jl.length-1].key!=alist[a].textkey)) {
-                                jl.push({key: alist[a].textkey, index: resp.items.length});
+                                jl.push({key: alist[a].textkey, index: startIndex+resp.items.length});
                                 resp.jumplist.push({key: alist[a].textkey, index:start+a});
                                 headerOnly = false;
                             }
@@ -1953,7 +1965,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                 var i = loop[idx];
                 var key = removeDiactrics(i.textkey);
                 if (undefined!=key && (resp.jumplist.length==0 || resp.jumplist[resp.jumplist.length-1].key!=key) && !textKeys.has(key)) {
-                    resp.jumplist.push({key: key, index: resp.items.length});
+                    resp.jumplist.push({key: key, index: startIndex+resp.items.length});
                     textKeys.add(key);
                 }
                 let title = replaceHtmlBrackets(i.genre);
@@ -1991,7 +2003,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                 }
                 if (isFolder) {
                     if (undefined!=key && (resp.jumplist.length==0 || resp.jumplist[resp.jumplist.length-1].key!=key) && !folderTextKeys.has(key)) {
-                        resp.jumplist.push({key: key, index: resp.items.length});
+                        resp.jumplist.push({key: key, index: startIndex+resp.items.length});
                         folderTextKeys.add(key);
                     }
                     resp.items.push({
@@ -2005,7 +2017,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     numFolders += 1;
                 } else {
                     if (undefined!=key && (prevWasFolder || resp.jumplist.length==0 || resp.jumplist[resp.jumplist.length-1].key!=key) && !textKeys.has(key)) {
-                        resp.jumplist.push({key: key, index: resp.items.length});
+                        resp.jumplist.push({key: key, index: startIndex+resp.items.length});
                         textKeys.add(key);
                     }
                     let playlist = {
@@ -2020,7 +2032,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                                 url:  i.url,
                                 remotePlaylist: isRemote,
                                 ihe: i.ihe, // home screen extra item
-                                realIndex: resp.items.length // So playlists are deleted in correct order
+                                realindex: startIndex+resp.items.length // So playlists are deleted in correct order
                             };
 
                     /*if (i.image) {
@@ -2172,7 +2184,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     }
                 }
                 if (undefined!=key && (resp.jumplist.length==0 || resp.jumplist[resp.jumplist.length-1].key!=key) && !textKeys.has(key)) {
-                    resp.jumplist.push({key: key, index: resp.items.length+(addedHeader ? -1 : 0)});
+                    resp.jumplist.push({key: key, index: startIndex+resp.items.length+(addedHeader ? -1 : 0)});
                     textKeys.add(key);
                 }
                 resp.items.push({
@@ -2295,7 +2307,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                 let i = makeHtmlSafe(loop[idx]);
                 var key = removeDiactrics(i.textkey);
                 if (undefined!=key && (resp.jumplist.length==0 || resp.jumplist[resp.jumplist.length-1].key!=key) && !textKeys.has(key)) {
-                    resp.jumplist.push({key: key, index: resp.items.length});
+                    resp.jumplist.push({key: key, index: startIndex+resp.items.length});
                     textKeys.add(key);
                 }
                 if (useHeaders && lastComposer!=i.composer) {

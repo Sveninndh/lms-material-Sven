@@ -1937,6 +1937,7 @@ sub _cliCommand {
                 $cnt++;
             }
         }
+        $request->addResult('count', $cnt);
         $request->setStatusDone();
         return;
     }
