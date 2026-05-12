@@ -3364,6 +3364,10 @@ sub _genreHandler {
 sub _playlistHandler {
     my ( $httpClient, $response ) = @_;
     my $playlistName = uri_unescape(basename($response->request->uri->path));
+    if ($playlistName && $playlistName =~/$&full=1$/) {
+        $playlistName = substr($playlistName, 0, -7);
+    }
+
     if ($playlistName) {
         utf8::decode($playlistName);
     }

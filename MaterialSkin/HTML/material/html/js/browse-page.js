@@ -42,7 +42,7 @@ const TRACK_WIDE_ONE = 0
 var lmsBrowse = Vue.component("lms-browse", {
     template: `
 <div id="browse-view" v-bind:class="{'detailed-sub':showDetailedSubtoolbar, 'indent-both':showDetailedSubtoolbar && isTrackList && wide>WIDE_COVER_IDENT && (!desktopLayout || !pinQueue), 'indent-right':showDetailedSubtoolbar && isTrackList && wide==WIDE_COVER_IDENT && (!desktopLayout || !pinQueue), 'indent-left':showDetailedSubtoolbar && wide>=WIDE_INDENT_L && (!desktopLayout || !pinQueue), 'detailed-img-track-list':showDetailedSubtoolbar&&isImageTrackList}">
- <div class="noselect" v-bind:class="{'subtoolbar-cover&&drawBgndImage':showDetailedSubtoolbar,'subtoolbar-tracklist':showTrackListCommands}">
+ <div class="noselect" v-bind:class="{'subtoolbar-cover':showDetailedSubtoolbar&&drawBgndImage,'subtoolbar-tracklist':showTrackListCommands}">
  <div class="subtoolbar" v-bind:class="{'toolbar-blur':showDetailedSubtoolbar}">
   <img v-if="currentImage && isTrackList && showDetailedSubtoolbar && wide<WIDE_COVER" :src="currentImage" class="sub-cover-fade sub-cover-track pointer"></img>
   <img v-else-if="currentImage && showDetailedSubtoolbar && wide<WIDE_COVER" :src="currentImage" class="sub-cover-fade sub-cover-right pointer"></img>
@@ -458,7 +458,7 @@ var lmsBrowse = Vue.component("lms-browse", {
    <div style="height:68px; background:transparent" v-if="browseSearch"></div>
    <div style="height:20px; background:transparent" v-else></div> <!-- add padding -->
   </div>
-  <div class="browse-search-btn" v-if="browseSearch && !searchActive" role="button" :title="SEARCH_LIB_ACTION | tooltip(keyboardControl)" @click="itemAction(SEARCH_LIB_ACTION, undefined, undefined, $event)"><img class="svg-img" :src="ACTIONS[SEARCH_LIB_ACTION].svg | svgIcon(!darkSearchIcon)"></img></div>
+  <div class="browse-search-btn" id="browse-search-btn" v-if="browseSearch && !searchActive" role="button" :title="SEARCH_LIB_ACTION | tooltip(keyboardControl)" @click="itemAction(SEARCH_LIB_ACTION, undefined, undefined, $event)"><img class="svg-img" :src="ACTIONS[SEARCH_LIB_ACTION].svg | svgIcon(!darkSearchIcon)"></img></div>
  </div>
 
  <v-menu v-model="menu.show" :position-x="menu.x" :position-y="menu.y">
@@ -2514,7 +2514,8 @@ var lmsBrowse = Vue.component("lms-browse", {
         }.bind(this));
 
         bus.$on('refreshList', function(section) {
-            if (undefined==section || section==SECTION_PODCASTS || (this.current && this.current.section==section)) {
+            if (undefined==section || section==SECTION_PODCASTS || (this.current && this.current.section==section) ||
+                (section==SECTION_FAVORITES && this.isTop && this.$store.state.detailedHomeItems.length>0)) {
                 this.refreshList();
             }
         }.bind(this));

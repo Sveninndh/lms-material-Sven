@@ -561,6 +561,10 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                 if (!i.id || isFavorites) {
                     if (i.params && i.params.track_id) {
                         i.id = uniqueId("track_id:"+i.params.track_id, resp.items.length); // Incase of duplicates?
+                    } else if (i.params && i.params.item_id) {
+                        i.id = uniqueId("item_id:"+i.params.item_id, resp.items.length); // Incase of duplicates?
+                    } else if (i.actions && i.actions.go && i.actions.go.params && i.actions.go.params.item_id) {
+                        i.id = uniqueId("item_id:"+i.actions.go.params.item_id, resp.items.length); // Incase of duplicates?
                     } else if (parent && parent.id && parent.id.startsWith(TOP_ID_PREFIX)) {
                         i.id="item_id:"+resp.items.length;
                     } else {
@@ -915,6 +919,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                 if (resp.isMusicMix) {
                     resp.items.shift();
                     resp.subtitle=0==resp.items.length ? i18n("Empty") : i18np("1 Track", "%1 Tracks", resp.items.length-numHeaders);
+                    resp.listSize=resp.items.length;
                 } else {
                     if (resp.items.length>0 &&
                         ( ("spotty"==command) || ("trackinfo"==command && getIndex(data.params[1], "url:spotify://track:")>0))) {
