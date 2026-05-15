@@ -6,12 +6,7 @@
  */
 'use strict';
 
-const NP_SHARE_STD_H    = 200;
-const NP_SHARE_STD_W    = 500;
-const NP_SHARE_MED_H    = 300;
-const NP_SHARE_MED_W    = 700;
-const NP_SHARE_LARGE_H  = 400;
-const NP_SHARE_LARGE_W  = 900;
+const NP_SHARE_SCALE = true; // Scale canvas based upon devicePixelRatio?
 
 function loadImage(url) {
     return new Promise(function(resolve) {
@@ -112,37 +107,25 @@ function getList(item, type, used) {
     return vals;
 }
 
-async function renderNowPlayingToCanvas(track, artImg, isDark, size, centered, rounded) {
-    const FONT_SUFFIX       = 'px Roboto, sans-serif';
-    const STD_WEIGHT        = '400 ';
-    const EXTRA_BOLD_WEIGHT = '700 ';
-    const MAX_WIDTH             = 2==size ? NP_SHARE_LARGE_W : 1==size ? NP_SHARE_MED_W : NP_SHARE_STD_W;
-    const MAX_HEIGHT            = 2==size ? NP_SHARE_LARGE_H : 1==size ? NP_SHARE_MED_H : NP_SHARE_STD_H;
+async function renderNowPlayingToCanvas(track, artImg, isDark, rounded, withContext) {
+    const FONT_SUFFIX        = 'px Roboto, sans-serif';
+    const STD_WEIGHT         = '400 ';
+    const EXTRA_BOLD_WEIGHT  = '700 ';
+    const DEVICE_PIXEL_RATIO = window.devicePixelRatio || 1;
 
-    let withContext = 0!=size && !centered;
-    let used = new Set();
-    let artists = withContext ? getList(track, "artist", used) : []
-    let composers = withContext && track.composer && lmsOptions.showComposer && useComposer(track) ? getList(track, "composer", used) : [];
-    let conductors = withContext && track.conductor && lmsOptions.showConductor && useConductor(track) ? getList(track, "conductor", used) : [];
-    let artstsCombined = undefined;
-    let composersCombined = undefined;
-    let conductorsCombined = undefined;
-    let albumLine = stripTags(track.albumLine);
-    let artistAndComposer = stripTags(track.artistAndComposer);
-
-    if (withContext && 2==size && (artists.length>0 || composers.length>0 || conductors.length>0)) {
-        artstsCombined = artists.length>0 ? artists.join(SEPARATOR) : undefined;
-        composersCombined = composers.length>0 ? composers.join(SEPARATOR) : undefined;
-        conductorsCombined = conductors.length>0 ? conductors.join(SEPARATOR) : undefined;
+    if (withContext && (undefined==track.source || undefined==track.source.context || !track.source.context)) {
+        withContext = false;
     }
 
-    // Calculate view width based upon strings...
-    let tmpCanvas = document.createElement('canvas');
-    let tmpCtx = tmpCanvas.getContext('2d', { alpha: true, willReadFrequently: false });
-    tmpCanvas.width = MAX_WIDTH;
-    tmpCanvas.height = MAX_HEIGHT;
+    let used = new Set();
+    let artists = getList(track, "artist", used)
+    let composers = track.composer && lmsOptions.showComposer && useComposer(track) ? getList(track, "composer", used) : [];
+    let conductors = track.conductor && lmsOptions.showConductor && useConductor(track) ? getList(track, "conductor", used) : [];
+    let artstsCombined = artists.length>0 ? artists.join(SEPARATOR) : undefined;
+    let composersCombined = composers.length>0 ? composers.join(SEPARATOR) : undefined;
+    let conductorsCombined = conductors.length>0 ? conductors.join(SEPARATOR) : undefined;
+    let albumLine = stripTags(track.albumLine);
 
-    let maxWidth = 0;
     let strings = [albumLine];
     if (undefined!=artstsCombined) {
         strings.push(artstsCombined);
@@ -153,9 +136,26 @@ async function renderNowPlayingToCanvas(track, artImg, isDark, size, centered, r
     if (undefined!=conductorsCombined) {
         strings.push(conductorsCombined);
     }
-    if (undefined==artstsCombined && undefined==composersCombined && undefined==conductorsCombined) {
-        strings.push(artistAndComposer);
+
+    const MAX_HEIGHT = Math.round(Math.min(400, 100 + (strings.length * 80))/4)*4;
+    const MAX_WIDTH  = Math.round(Math.min(900, 2.25 * MAX_HEIGHT)/4)*4;
+
+    // Calculate view width based upon strings...
+    let tmpCanvas = document.createElement('canvas');
+    let tmpCtx = tmpCanvas.getContext('2d', { alpha: true, willReadFrequently: false });
+
+    if (NP_SHARE_SCALE) {
+        tmpCanvas.width = MAX_WIDTH*DEVICE_PIXEL_RATIO;
+        tmpCanvas.height = MAX_HEIGHT*DEVICE_PIXEL_RATIO;
+        tmpCtx.scale(DEVICE_PIXEL_RATIO, DEVICE_PIXEL_RATIO);
+        tmpCanvas.style.width = `${MAX_WIDTH}px`;
+        tmpCanvas.style.height = `${MAX_HEIGHT}px`;
+    } else {
+        tmpCanvas.width = MAX_WIDTH;
+        tmpCanvas.height = MAX_HEIGHT;
     }
+
+    let maxWidth = 0;
 
     tmpCtx.font = STD_WEIGHT + 16 + FONT_SUFFIX;
     for (let i=0, len=strings.length && maxWidth<=tmpCanvas.height; i<len; ++i) {
@@ -175,28 +175,39 @@ async function renderNowPlayingToCanvas(track, artImg, isDark, size, centered, r
 
     let useWidth = tmpCanvas.width;
     if (maxWidth<=tmpCanvas.height) {
-        if (!centered  && maxWidth<=tmpCanvas.height*0.75) {
-            useWidth = tmpCanvas.height*(size>0 ? 1.7 : 1.8);
+        if (withContext && maxWidth<=tmpCanvas.height*0.75) {
+            useWidth = tmpCanvas.height*1.8;
         } else {
             useWidth = tmpCanvas.height*2;
         }
+    }
+    if (NP_SHARE_SCALE) {
+        useWidth/=DEVICE_PIXEL_RATIO;
     }
 
     tmpCanvas.remove();
 
     const OVERLAY_ALPHA = 0.45;
     const TEXT_COLOR    = "#" + (isDark ? LMS_DARK_SVG : "000");
-    const SUB_OPACITY   = 0.7;
+    const SUB_OPACITY   = 0.5;
     const CORNER_RADIUS = 14;
-    const MARGIN        = 2==size ? 12 : 1==size ? 8 : 6;
+    const MARGIN        = 12;
     const WIDTH         = useWidth;
     const HEIGHT        = MAX_HEIGHT;
     const MAX_ART_SIZE  = HEIGHT - (2 * MARGIN);
 
     let canvas = document.createElement('canvas');
     let ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: false });
-    canvas.width = WIDTH;
-    canvas.height = HEIGHT;
+    if (NP_SHARE_SCALE) {
+        canvas.width = WIDTH*DEVICE_PIXEL_RATIO;
+        canvas.height = HEIGHT*DEVICE_PIXEL_RATIO;
+        ctx.scale(DEVICE_PIXEL_RATIO, DEVICE_PIXEL_RATIO);
+        canvas.style.width = `${WIDTH}px`;
+        canvas.style.height = `${HEIGHT}px`;
+    } else {
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+    }
 
     if (rounded) {
         // ── Clip to rounded card ──
@@ -275,92 +286,74 @@ async function renderNowPlayingToCanvas(track, artImg, isDark, size, centered, r
     // ── 4. Text — right half, directly on background ──
     let tx    = usedArtW + (MARGIN * 3);
     let textW = WIDTH - (tx + (MARGIN*2));
-
     let entries = [];
 
-    let by = withContext ? stripTags(i18n("<obj>by</obj> %1")).replace(" %1", "") : undefined;
-    let from = withContext ? stripTags(i18n("<obj>from</obj> %1")).replace(" %1", "") : undefined;
-
-    if (2==size) {
-        entries.push({lines:[i18n('Now Playing').toUpperCase()], fontSize:12, weight:STD_WEIGHT, opacity:SUB_OPACITY, ctx:undefined, lspacing:0.5, spacing:16});
-    }
+    //entries.push({lines:[i18n('Now Playing').toUpperCase()], fontSize:12, weight:STD_WEIGHT, opacity:SUB_OPACITY, ctx:undefined, lspacing:0.5, spacing:16});
 
     // Auto-scale title — start smaller, max 2 lines, scale down to fit
-    let formatted = formatLines(ctx, track.title, textW, 2==size ? 24 : 18, 12, EXTRA_BOLD_WEIGHT, FONT_SUFFIX);
+    let formatted = formatLines(ctx, track.title, textW, 18, 14, EXTRA_BOLD_WEIGHT, FONT_SUFFIX);
     if (formatted.lines.length>0) {
         entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:EXTRA_BOLD_WEIGHT, opacity:1.0, spacing:12});
     }
 
-    if (withContext && 2==size && (artists.length>0 || composers.length>0 || conductors.length>0)) {
-        let fontSize = undefined;
-        let performedBy = stripTags(i18n("<obj>performed by</obj> %1")).replace(" %1", "");
+    let fontSize = undefined;
 
-        if (artstsCombined && lmsOptions.artistFirst) {
-            formatted = formatLines(ctx, artstsCombined, textW, Math.min(formatted.fontSize, 16), 12, STD_WEIGHT, FONT_SUFFIX);
-            if (formatted.lines.length>0) {
-                entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:composersCombined || conductorsCombined ? performedBy : by, spacing:8});
-                if (undefined==fontSize) {
-                    fontSize = formatted.fontSize;
-                }
+    if (artstsCombined && lmsOptions.artistFirst) {
+        formatted = formatLines(ctx, artstsCombined, textW, Math.min(formatted.fontSize-2, 14), 10, STD_WEIGHT, FONT_SUFFIX);
+        if (formatted.lines.length>0) {
+            let ctx = stripTags(composersCombined || conductorsCombined ? i18n("<obj>performed by</obj> %1") : i18n("<obj>by</obj> %1")).replace(" %1", "");
+            entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:ctx, spacing:8});
+            if (undefined==fontSize) {
+                fontSize = formatted.fontSize;
             }
         }
-        if (composersCombined) {
-            formatted = formatLines(ctx, composersCombined, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 16), fontSize ? fontSize : 12, STD_WEIGHT, FONT_SUFFIX);
-            if (formatted.lines.length>0) {
-                let composedBy = stripTags(i18n("<obj>composed by</obj> %1")).replace(" %1", "");
-                entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:composedBy, spacing:8});
-                if (undefined==fontSize) {
-                    fontSize = formatted.fontSize;
-                }
+    }
+    if (composersCombined) {
+        formatted = formatLines(ctx, composersCombined, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 14), fontSize ? fontSize : 10, STD_WEIGHT, FONT_SUFFIX);
+        if (formatted.lines.length>0) {
+            let composedBy = stripTags(i18n("<obj>composed by</obj> %1")).replace(" %1", "");
+            entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:composedBy, spacing:8});
+            if (undefined==fontSize) {
+                fontSize = formatted.fontSize;
             }
         }
-        if (conductorsCombined) {
-            formatted = formatLines(ctx, composersCombined, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 16), fontSize ? fontSize : 12, STD_WEIGHT, FONT_SUFFIX);
-            if (formatted.lines.length>0) {
-                let conductedBy = stripTags(i18n("<obj>conducted by</obj> %1")).replace(" %1", "");
-                entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:conductedBy, spacing:8});
-                if (undefined==fontSize) {
-                    fontSize = formatted.fontSize;
-                }
+    }
+    if (conductorsCombined) {
+        formatted = formatLines(ctx, composersCombined, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 14), fontSize ? fontSize : 10, STD_WEIGHT, FONT_SUFFIX);
+        if (formatted.lines.length>0) {
+            let conductedBy = stripTags(i18n("<obj>conducted by</obj> %1")).replace(" %1", "");
+            entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:conductedBy, spacing:8});
+            if (undefined==fontSize) {
+                fontSize = formatted.fontSize;
             }
         }
-        if (artstsCombined && !lmsOptions.artistFirst) {
-            formatted = formatLines(ctx, artstsCombined, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 16), fontSize ? fontSize : 12, STD_WEIGHT, FONT_SUFFIX);
-            if (formatted.lines.length>0) {
-                entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:composersCombined || conductorsCombined ? performedBy : by, spacing:8});
-                if (undefined==fontSize) {
-                    fontSize = formatted.fontSize;
-                }
+    }
+    if (artstsCombined && !lmsOptions.artistFirst) {
+        formatted = formatLines(ctx, artstsCombined, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 14), fontSize ? fontSize : 10, STD_WEIGHT, FONT_SUFFIX);
+        if (formatted.lines.length>0) {
+            entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:composersCombined || conductorsCombined ? performedBy : by, spacing:8});
+            if (undefined==fontSize) {
+                fontSize = formatted.fontSize;
             }
         }
-        //if (track.work!=undefined) {
-        //    formatted = formatLines(ctx, track.work, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 16), fontSize ? fontSize : 12, STD_WEIGHT, FONT_SUFFIX);
-        //    if (formatted.lines.length>0) {
-        //        let workCtx = stripTags(XXX("<obj>work</obj> %1")).replace(" %1", "");
-        //        entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:workCtx, spacing:4});
-        //    }
-        //}
+    }
+    //if (track.work!=undefined) {
+    //    formatted = formatLines(ctx, track.work, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 14), fontSize ? fontSize : 10, STD_WEIGHT, FONT_SUFFIX);
+    //    if (formatted.lines.length>0) {
+    //        let workCtx = stripTags(XXX("<obj>work</obj> %1")).replace(" %1", "");
+    //        entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:workCtx, spacing:4});
+    //    }
+    //}
 
-        formatted = formatLines(ctx, albumLine, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 14), fontSize ? fontSize : 10, STD_WEIGHT, FONT_SUFFIX);
-        if (formatted.lines.length>0) {
-            entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:withContext ? 1.0 : SUB_OPACITY, ctx:from, spacing:4});
-        }
-    } else {
-        formatted = formatLines(ctx, artistAndComposer, textW, Math.min(formatted.fontSize, 16), 12, STD_WEIGHT, FONT_SUFFIX);
-        if (formatted.lines.length>0) {
-            entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:by, spacing:withContext ? entries[0].spacing : 4});
-        }
-
-        formatted = formatLines(ctx, albumLine, textW, Math.min(formatted.fontSize, 14), 10, STD_WEIGHT, FONT_SUFFIX);
-        if (formatted.lines.length>0) {
-            entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:withContext ? 1.0 : SUB_OPACITY, ctx:from, spacing:4});
-        }
+    formatted = formatLines(ctx, albumLine, textW, fontSize ? fontSize : Math.min(formatted.fontSize, 14), fontSize ? fontSize : 10, STD_WEIGHT, FONT_SUFFIX);
+    if (formatted.lines.length>0) {
+        entries.push({lines:formatted.lines, fontSize:formatted.fontSize, weight:STD_WEIGHT, opacity:1.0, ctx:stripTags(i18n("<obj>from</obj> %1")).replace(" %1", ""), spacing:4});
     }
 
     // Calculate total block height for vertical centring
     let totalTextH = 0;
     for (let e=0; e<entries.length; ++e) {
-        totalTextH += (Math.min(entries[e].lines.length, 2) + (withContext && undefined!=entries[e].ctx ? 1 : 0)) * entries[e].fontSize * 1.15;
+        totalTextH += (Math.min(entries[e].lines.length, e>0 || entries.length > 3 ? 2 : 3) + (withContext && undefined!=entries[e].ctx ? 1 : 0)) * entries[e].fontSize * 1.15;
         if (e<entries.length-1) {
             totalTextH += entries[e].spacing;
         }
@@ -372,22 +365,20 @@ async function renderNowPlayingToCanvas(track, artImg, isDark, size, centered, r
 
     for (let e=0; e<entries.length; ++e) {
         if (entries[e].lines.length>0) {
+            let maxLines = e>0 || entries.length > 3 ? 2 : 3;
             let lineH = entries[e].fontSize * 1.15;
             ctx.font = entries[e].weight + entries[e].fontSize + FONT_SUFFIX;
             ctx.letterSpacing = (undefined==entries[e].lspacing ? 0.0 : entries[e].lspacing) + 'em';
-            if (e>0 && withContext && undefined!=entries[e].ctx) {
+            if (withContext && e>0 && undefined!=entries[e].ctx) {
                 ctx.globalAlpha = SUB_OPACITY;
-                let offset = centered ? (textW - ctx.measureText(entries[e].ctx).width)/2 : 0;
-                ctx.fillText(entries[e].ctx, tx + offset, ty + lineH);
+                ctx.fillText(entries[e].ctx, tx, ty + lineH);
                 ty += lineH;
             }
             ctx.globalAlpha = entries[e].opacity;
-            let offset = centered ? (textW - ctx.measureText(entries[e].lines[0]).width)/2 : 0;
-            ctx.fillText(entries[e].lines[0], tx + offset, ty + lineH);
-            ty += lineH;
-            if (entries[e].lines.length>1) {
-                let txt = entries[e].lines[1]+(entries[e].lines.length>2 ? "..." : "");
-                offset = centered ? (textW - ctx.measureText(txt).width)/2 : 0;
+
+            for (let l=0; l<maxLines && l<entries[e].lines.length; ++l) {
+                let txt = entries[e].lines[l]+((l+1==maxLines) && entries[e].lines.length>maxLines ? "..." : "");
+                let offset = withContext ? 0 : ((textW - ctx.measureText(txt).width)/2);
                 ctx.fillText(txt, tx + offset, ty + lineH);
                 ty += lineH;
             }
@@ -401,20 +392,21 @@ async function renderNowPlayingToCanvas(track, artImg, isDark, size, centered, r
     svg.src = "/material/svg/lyrion-logo?c=" + (isDark ? LMS_DARK_SVG : LMS_LIGHT_SVG);
     try {
         await waitForLoad(svg);
-        let h = size>1 ? 22 : 16;
+        let h = HEIGHT>=300 ? 18 : 16;
         let w = h * (svg.width/svg.height)
-        ctx.drawImage(svg, WIDTH-(w+MARGIN+8), MARGIN+2, w, h);
-        logoX = WIDTH-(w+MARGIN+14);
+        ctx.drawImage(svg, WIDTH-(w+MARGIN), MARGIN, w, h);
+        logoX = WIDTH-(w+MARGIN+12);
     } catch (e) {
     }
 
+    track.emblem = {name:'bbc-sounds'};
     if (undefined!=track.emblem) {
         svg = new Image();
         svg.src = "/material/svg/"+track.emblem.name+"?c=" + (isDark ? LMS_DARK_SVG : LMS_LIGHT_SVG);;
         try {
             await waitForLoad(svg);
-            let sz = size>1 ? 26 : 20;
-            ctx.drawImage(svg, logoX-(sz + 4), MARGIN+(size>1 ? 0 : -1), sz, sz);
+            let sz = HEIGHT>=300 ? 20 : 18;
+            ctx.drawImage(svg, logoX-sz, MARGIN-1, sz, sz);
         } catch (e) {
         }
     }
@@ -427,7 +419,7 @@ async function renderNowPlayingToCanvas(track, artImg, isDark, size, centered, r
 
 Vue.component('lms-npshare-dialog', {
     template: `
-<v-dialog v-model="show" :width="((2==size ? NP_SHARE_LARGE_W : 1==size ? NP_SHARE_MED_W: NP_SHARE_STD_W)/dpr)+20" persistent v-if="show">
+<v-dialog v-model="show" :width="canvasWidth+20" persistent v-if="show">
  <v-card>
   <v-card-title>{{i18n("Now Playing")}}</v-card-title>
   <v-list-tile-sub-title style="padding:0px 16px 16px 16px">{{text}}</v-list-tile-sub-title>
@@ -438,21 +430,6 @@ Vue.component('lms-npshare-dialog', {
    <v-menu top v-model="showMenu">
     <v-btn icon slot="activator"><v-icon>more_vert</v-icon></v-btn>
     <v-list>
-     <v-list-tile role="menuitem" @click="toggleCentered">
-      <v-list-tile-avatar><v-icon>{{centered ? 'check_box' : 'check_box_outline_blank'}}</v-icon></v-list-tile-avatar>
-      <v-list-tile-content><v-list-tile-title>{{i18n("Center text")}}</v-list-tile-title></v-list-tile-content>
-     </v-list-tile>
-     <v-list-tile role="menuitem" v-if="allowRounded" @click="toggleRounded">
-      <v-list-tile-avatar><v-icon>{{rounded ? 'check_box' : 'check_box_outline_blank'}}</v-icon></v-list-tile-avatar>
-      <v-list-tile-content><v-list-tile-title>{{i18n("Round corners")}}</v-list-tile-title></v-list-tile-content>
-     </v-list-tile>
-     <v-subheader>{{i18n("Size")}}</v-subheader>
-     <template v-for="(name, index) in sizes">
-      <v-list-tile role="menuitem" @click="changeSize(index)" class="menu-group-item">
-       <v-list-tile-avatar><v-icon>{{index==size ? 'radio_button_checked' : 'radio_button_unchecked'}}</v-icon></v-list-tile-avatar>
-       <v-list-tile-content><v-list-tile-title>{{name}}</v-list-tile-title></v-list-tile-content>
-      </v-list-tile>
-     </template>
      <v-subheader>{{i18n("Theme")}}</v-subheader>
      <template v-for="(name, index) in styles">
       <v-list-tile role="menuitem" @click="changeStyle(index)" class="menu-group-item">
@@ -463,10 +440,12 @@ Vue.component('lms-npshare-dialog', {
     </v-list>
    </v-menu>
    <v-spacer></v-spacer>
+   <v-btn flat icon v-if="showClipboard && 2==btnStyle" @click="save('C')" :title="i18n('Add to clipboard')"><img class="svg-img" :src="'clipboard-add' | svgIcon(darkUi)"></img></v-btn>
+   <v-btn flat v-else-if="showClipboard" @click="save('C')">{{1==btnStyle ?  i18n('Clipboard') : i18n('Add to clipboard')}}</v-btn>
+   <div style="width:32px; height:0px; background:transparent" v-if="2==btnStyle && showClipboard && showShare"></div>
    <v-btn flat icon v-if="showShare && 2==btnStyle" @click="save('S')" :title="i18n('Share')"><v-icon>share</v-icon></v-btn>
-   <v-btn flat v-else-if="showShare" @click="save('S')"><v-icon class="btn-icon">share</v-icon>{{i18n('Share')}}</v-btn>
-   <v-btn flat icon v-if="showClipboard && 2==btnStyle" @click="save('C')" :title="i18n('Add to clipboard')"><img class="svg-img btn-icon" :src="'clipboard-add' | svgIcon(darkUi)"></img></v-btn>
-   <v-btn flat v-else-if="showClipboard" @click="save('C')"><img class="svg-img btn-icon" :src="'clipboard-add' | svgIcon(darkUi)"></img>{{1==btnStyle ?  i18n('Clipboard') : i18n('Add to clipboard')}}</v-btn>
+   <v-btn flat v-else-if="showShare" @click="save('S')">{{i18n('Share')}}</v-btn>
+   <div style="width:32px; height:0px; background:transparent" v-if="2==btnStyle && (showClipboard || showShare)"></div>
    <v-btn flat @click="close">{{i18n('Close')}}</v-btn>
   </v-card-actions>
  </v-card>
@@ -485,11 +464,7 @@ Vue.component('lms-npshare-dialog', {
             style: 0,
             styles: [],
             text: undefined,
-            rounded: true,
-            centered: true,
-            size: 0,
-            sizes: [],
-            dpr:1.0
+            canvasWidth:300
         }
     },
     computed: {
@@ -498,13 +473,9 @@ Vue.component('lms-npshare-dialog', {
         },
         darkUi() {
             return this.$store.state.darkUi
-        },
-        allowRounded() {
-            return this.$store.state.roundCovers
         }
     },
     mounted() {
-        this.dpr = window.devicePixelRatio || 1;
         bus.$on('npshare.open', function(coverUrl, track) {
             this.coverUrl = coverUrl;
             this.track = track;
@@ -530,9 +501,6 @@ Vue.component('lms-npshare-dialog', {
             this.styles = [i18n("Dark"), i18n("Light"), i18n("Automatic")];
             this.sizes = [i18n("Small"), i18n("Medium"), i18n("Large")];
             this.style = parseInt(getLocalStorageVal("nd-share-style", this.style));
-            this.rounded = getLocalStorageBool("nd-share-rounded", this.rounded);
-            this.centered = getLocalStorageBool("nd-share-centered", this.centered);
-            this.size = parseInt(getLocalStorageVal("nd-share-size", this.size));
         }.bind(this));
         bus.$on('closeDialog', function(dlg) {
             if (dlg == 'npshare') {
@@ -580,8 +548,9 @@ Vue.component('lms-npshare-dialog', {
         createImage() {
             let view = this;
             loadImage(view.coverUrl).then(async function(artImg) {
-                let canvas = await renderNowPlayingToCanvas(view.track, artImg, view.dark, view.size, view.centered, view.allowRounded && view.rounded);
+                let canvas = await renderNowPlayingToCanvas(view.track, artImg, view.dark, view.$store.state.roundCovers, view.$store.state.nowPlayingContext);
                 view.src = canvas.toDataURL('image/png');
+                view.canvasWidth = Math.min(600, canvas.width);
                 canvas.remove();
                 view.show = true;
                 view.date = new Date();
@@ -591,23 +560,6 @@ Vue.component('lms-npshare-dialog', {
             if (idx!=this.style) {
                 this.style = idx;
                 setLocalStorageVal("nd-share-style", idx);
-                this.createImage();
-            }
-        },
-        toggleCentered() {
-            this.centered = !this.centered;
-            setLocalStorageVal("nd-share-centered", this.centered);
-            this.createImage();
-        },
-        toggleRounded() {
-            this.rounded = !this.rounded;
-            setLocalStorageVal("nd-share-rounded", this.rounded);
-            this.createImage();
-        },
-        changeSize(idx) {
-            if (idx!=this.size) {
-                this.size = idx;
-                setLocalStorageVal("nd-share-size", idx);
                 this.createImage();
             }
         },
