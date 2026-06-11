@@ -1482,6 +1482,9 @@ function parseBrowseResp(data, parent, options, cacheKey) {
             // is the more useful structure.
             let splitIntoGroupings = undefined==parent || MULTI_DISC_ALBUM!=parent.multi;
 
+            if (undefined!=data.result.album_header && undefined!=data.result.album_header.title_names && data.result.album_header.title_names.length>1) {
+                resp.listHeader = data.result.album_header;
+            }
             for (let idx=0, loop=data.result.titles_loop, loopLen=loop.length; idx<loopLen; ++idx) {
                 let i = makeHtmlSafe(loop[idx]);
                 if (undefined!=filterCompilation && (undefined==i.compilation ? 0 : parseInt(i.compilation))!=filterCompilation) {
@@ -2497,6 +2500,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     if (undefined!=obj) {
                         new_data.result['base']=obj['base'];
                         new_data.result['count']=obj['count'];
+                        new_data.result['offset']=obj['offset'];
                     }
                     let newResp = parseBrowseResp(new_data, parent, opts, undefined);
                     if (ismore) {
@@ -2509,7 +2513,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                         if (undefined!=obj) { // 3rd party => slimbrowse...
                             let header = {title:lists[s].title, id:lists[s].id, header:true, ihe:1, icon:lists[s].icon, svg: lists[s].svg, limit: lists[s].limit,
                                           morecmd:undefined, baseActions:undefined!=obj['base'] ? obj['base']['actions'] : undefined,
-                                          section:lists[s].section, isFavFolder:lists[s].isFavFolder}
+                                          section:lists[s].section, isFavFolder:lists[s].isFavFolder, slimbrowse:true}
                             mapIcon(header);
                             if (undefined==header.icon && undefined==header.svg) {
                                 if (undefined!=lists[s].svg) {

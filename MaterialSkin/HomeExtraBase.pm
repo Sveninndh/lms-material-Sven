@@ -11,22 +11,21 @@ sub initPlugin {
     my $extra = delete $args{extra};
 
     $class->SUPER::initPlugin(%args);
+    
+    $extra->{handler} = sub { $class->handleExtra(@_) }; 
 
-    $extra->{handler} = sub { $class->handleExtra(@_) }; #Sven 2026-02-10
-
-    Plugins::MaterialSkin::Plugin->registerHomeExtra($args{tag}, $extra); #Sven 2026-02-10
-}
+    Plugins::MaterialSkin::Plugin->registerHomeExtra($args{tag}, $extra); }
 
 #  we don't want these menus to be shown anywhere but as Home Extras
 sub initJive {[]}
 sub modeName {}
 
-sub handleExtra { #Sven 2026-02-05 von Craig abgewandelte Version, sollte im Ergebnis den gleichen Effek6t haben, ist möglicherweise etwas sicherer.
-    my ($class, $client, $cb, $count, $userId) = @_;
+sub handleExtra {
+    my ($class, $client, $cb, $args) = @_;
 
-    my @cmd = ($class->tag, 'items', 0, $count || Plugins::MaterialSkin::Plugin::NUM_HOME_ITEMS(), 'menu:1');
-
-    push(@cmd, "user_id:${userId}") if $userId; #Sven 2026-04-10
+    my @cmd = ($class->tag, 'items', $args->{index}, $args->{quantity}, 'menu:1');
+    push(@cmd, "user_id:$args->{userId}") if $args->{userId};
+    push(@cmd, "features:$args->{features}") if $args->{features};
 
     Slim::Control::Request::executeRequest($client, \@cmd,
         sub {
