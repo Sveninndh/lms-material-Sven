@@ -2265,6 +2265,14 @@ sub _handleHomeExtraCmd {
                 my $features = $request->getParam('features');
                 $args->{features} = $features if $features;
 
+                my $args = { 
+                    index    => $request->getParam('_p2') || 0,
+                    quantity => $extra->{count} && $extra->{count} > $count ? $extra->{count} : $count || NUM_HOME_ITEMS,
+                };
+                $args->{user_id} = $userId if $userId;
+                my $features = $request->getParam('features');
+                $args->{features} = $features if $features;
+
                 $extra->{handler}->($request->client, sub {
                     $acb->({ $id => (shift || []) });
                 }, $args); 
