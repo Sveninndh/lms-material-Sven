@@ -2256,7 +2256,6 @@ sub _handleHomeExtraCmd {
             action => sub {
                 my ($extra, $acb) = @_;
                 my $id = $extra->{id};
-                my $ct = $extra->{count} && $extra->{count} > $count ? $extra->{count} : $count; #Sven 2026-02-10
 
                 my $args = { 
                     index    => $request->getParam('_p2') || 0,
