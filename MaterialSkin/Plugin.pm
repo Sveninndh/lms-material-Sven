@@ -2111,7 +2111,10 @@ sub _handleHomeExtraCmd {
     my $request = shift;
     $request->setStatusProcessing();
     my $index = $request->getParam('_p2'); # _index
-    my $count = $request->getParam('_p3'); # _quantity (count)
+    my $count = $request->getParam('count');
+    if (!$count) {
+        $count = $request->getParam('_p3'); # _quantity (count)
+    }
     my $libId = $request->getParam('library_id');
     my $userId = $request->getParam('user_id');
     
@@ -2258,8 +2261,8 @@ sub _handleHomeExtraCmd {
                 my $id = $extra->{id};
 
                 my $args = { 
-                    index    => $request->getParam('_p2') || 0,
-                    quantity => $extra->{count} && $extra->{count} > $count ? $extra->{count} : $count || NUM_HOME_ITEMS,
+                    index    => $index,
+                    quantity => $extra->{count} && $extra->{count} > $count ? $extra->{count} : $count,
                 };
                 $args->{user_id} = $userId if $userId;
                 my $features = $request->getParam('features');
