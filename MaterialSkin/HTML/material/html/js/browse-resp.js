@@ -265,6 +265,10 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     if (i.type=="header") {
                         i.header = true;
                         resp.numHeaders++;
+                    } else if (i.type=="header-basic") {
+                        i.header = true;
+                        resp.numHeaders++;
+                        i.actions = undefined;
                     }
                 }
 
@@ -291,7 +295,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     i.image = resolveImage("music/0/cover" + LMS_LIST_IMAGE_SIZE);
                 }
 
-                if (i.type!="header") {
+                if (!i.header) {
                     if (i.image) {
                         haveWithIcons = true;
                     } else {
@@ -664,6 +668,43 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     i.menu.push(SHOW_IMAGE_ACTION);
                 }
 
+                // Surface custom actions on app/online (streaming) browse items. These arrive
+                // via item_loop (library content uses the *_loop branches) and bypass the
+                // STD_ITEMS action-menu path (online stdItems are >= STD_ITEM_ONLINE_ARTIST, so
+                // item.stdItem<STD_ITEMS.length is false), so add the CUSTOM_ACTIONS marker to
+                // the item's own menu and populate the view-level itemCustomActions. Service
+                // album rows (e.g. Qobuz New Releases) carry no favorites_url/metadata - only a
+                // playable item_id + title/subtitle - so key off playability and expose
+                // title/subtitle via item.album/item.artist so $ALBUMNAME/$ARTISTNAME resolve;
+                // $SERVICE carries the browsing service ('command').
+                let isOnlineAlbum  = STD_ITEM_ONLINE_ALBUM==i.stdItem;
+                let isOnlineArtist = STD_ITEM_ONLINE_ARTIST==i.stdItem;
+                let isAppItem = !isOnlineAlbum && !isOnlineArtist && !isOnlineTrack &&
+                                addedPlayAction && undefined==i.stdItem && !isFavorites && !isAppsTop;
+                if (isOnlineAlbum || isOnlineArtist || isOnlineTrack || isAppItem) {
+                    let btype    = isOnlineArtist ? "artist" : isOnlineTrack ? "track" : "album";
+                    let ocFilter = i.presetParams ? i.presetParams.favorites_url : undefined;
+                    // A plugin/app can define a custom-action category for its OWN view, named
+                    // "<command>-<type>" (e.g. "listentolater-album"). If defined - even as an
+                    // empty list - it takes precedence over the generic "online-*" category, so
+                    // a plugin's own list can show different actions, or none (an empty category
+                    // suppresses the generic actions on that app's items).
+                    let appCat = (undefined!=command) ? command+"-"+btype : undefined;
+                    let oca = (undefined!=appCat && undefined!=customActions && (appCat in customActions))
+                              ? getCustomActions(appCat, false, ocFilter)
+                              : getCustomActions("online-"+btype, false, ocFilter);
+                    if (undefined!=oca && oca.length>0) {
+                        if (isAppItem) {
+                            if (undefined==i.album)  { i.album   = i.title; }
+                            if (undefined==i.artist) { i.artist  = i.subtitle; }
+                            i.service = command;
+                        }
+                        addedDivider = addDivider(i, addedDivider);
+                        i.menu.push(CUSTOM_ACTIONS);
+                        if (undefined==resp.itemCustomActions) { resp.itemCustomActions = oca; }
+                    }
+                }
+
                 // Only show 'More' action if:
                 //    'more' is in baseActions and item has item_id
                 //    - OR -
@@ -799,7 +840,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                             item.image = defAlbumCover;
                         } else if (item.type=="artist") {
                             item.image = defArtistImage;
-                        } else {
+                        } else if (!item.header) {
                             // Found an item without and image and not marked as an artist or album, no
                             // default image set - so disable grid usage.
                             // See: https://forums.lyrion.org/showthread.php?109624-Announce-Material-Skin&p=944597&viewfull=1#post944597
