@@ -625,6 +625,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                                  i.presetParams.favorites_url.startsWith("qobuz://") ||
                                  i.presetParams.favorites_url.startsWith("tidal://") ||
                                  i.presetParams.favorites_url.startsWith("deezer://") ||
+                                 i.presetParams.favorites_url.startsWith("ytm://") || // YouTube Music
                                  /*i.presetParams.favorites_url.startsWith("youtube://") || YouTube only shows URL if saved to playlist? */
                                  ( i.presetParams.favorites_url.startsWith("https:") && command=="bandcamp"))) {
                         numTracks++;
@@ -705,20 +706,30 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     // "<command>-<type>" (e.g. "listentolater-album"). If defined - even as an
                     // empty list - it takes precedence over the generic "online-*" category, so
                     // a plugin's own list can show different actions, or none (an empty category
-                    // suppresses the generic actions on that app's items).
-                    let appCat = (undefined!=command) ? command+"-"+btype : undefined;
-                    let oca = (undefined!=appCat && undefined!=customActions && (appCat in customActions))
-                              ? getCustomActions(appCat, false, ocFilter)
-                              : getCustomActions("online-"+btype, false, ocFilter);
+                    // suppresses the generic actions on that app's items). The category may
+                    // come from customactions.json or be registered by a plugin, so check both.
+                    let appCat = undefined!=command ? command+"-"+btype : undefined;
+                    let haveAppCat = undefined!=appCat &&
+                                     ((undefined!=customActions && (appCat in customActions)) ||
+                                      (undefined!=pluginCustomActions && (appCat in pluginCustomActions)));
+                    let oca = haveAppCat
+                                  ? getCustomActions(appCat, false, ocFilter, true)
+                                  : getCustomActions("online-"+btype, false, ocFilter, true);
                     if (undefined!=oca && oca.length>0) {
                         if (isAppItem) {
-                            if (undefined==i.album)  { i.album   = i.title; }
-                            if (undefined==i.artist) { i.artist  = i.subtitle; }
+                            if (undefined==i.album) {
+                                i.album = i.title;
+                            }
+                            if (undefined==i.artist) {
+                                i.artist = i.subtitle;
+                            }
                             i.service = command;
                         }
                         addedDivider = addDivider(i, addedDivider);
                         i.menu.push(CUSTOM_ACTIONS);
-                        if (undefined==resp.itemCustomActions) { resp.itemCustomActions = oca; }
+                        if (undefined==resp.itemCustomActions) {
+                            resp.itemCustomActions = oca;
+                        }
                     }
                 }
 
@@ -808,6 +819,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     i.actions = undefined;
                     i.addAction = undefined;
                 }
+                i.emblem = getEmblem(i.extid);
                 if (i.isListItemInMenu) {
                     resp.actionItems.push(i);
                 } else {
@@ -818,7 +830,10 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     i.type="other"; // ???
                 }
                 types.add(i.type);
-                images.add(i.image ? i.image : i.icon ? i.icon : i.svg);
+                let itemImage = i.image ? i.image : i.icon ? i.icon : i.svg;
+                if (itemImage) {
+                    images.add(itemImage);
+                }
             }
             /* ...continuation of favourited album add/play track issue... */
             if (!isFavorites && parent && parent.section == SECTION_FAVORITES && resp.items.length>0 && resp.items[0].stdItem == STD_ITEM_TRACK) {
@@ -869,6 +884,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
             }
             if (1==resp.items.length && 'text'==resp.items[0].type && 'itemNoAction'==resp.items[0].style && msgIsEmpty(resp.items[0].title)) {
                 resp.items=[];
+                resp.listSize=0;
             }
 
             if (isAppsTop) {
@@ -1042,7 +1058,7 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                         }
                     }
                     if (parent && parent.presetParams && parent.presetParams.favorites_url) {
-                        let parentActs = getCustomActions(command, false, parent.presetParams.favorites_url);
+                        let parentActs = getCustomActions(command, false, parent.presetParams.favorites_url, true);
                         if (undefined!=parentActs && parentActs.length>0) {
                             if (undefined==resp.actionItems) {
                                 resp.actionItems = [];
@@ -1097,6 +1113,9 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                     }
                     if (0!=itemCount && (itemCount+resp.numHeaders)<resp.listSize) {
                         resp.subtitle+='<obj style="opacity:0.7">&nbsp;' + i18n("(Scroll for more)")+"</obj>";
+                    }
+                    if (resp.canUseGrid && images.size==0) {
+                        resp.canUseGrid = false;
                     }
                 }
             }
@@ -2571,7 +2590,8 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                         if (undefined!=obj) { // 3rd party => slimbrowse...
                             let header = {title:lists[s].title, id:lists[s].id, header:true, ihe:1, icon:lists[s].icon, svg: lists[s].svg, limit: lists[s].limit,
                                           morecmd:undefined, baseActions:undefined!=obj['base'] ? obj['base']['actions'] : undefined,
-                                          section:lists[s].section, isFavFolder:lists[s].isFavFolder, slimbrowse:true}
+                                          section:lists[s].section, isFavFolder:lists[s].isFavFolder, slimbrowse:true,
+                                          itemCustomActions:newResp.itemCustomActions};
                             mapIcon(header);
                             if (undefined==header.icon && undefined==header.svg) {
                                 if (undefined!=lists[s].svg) {
@@ -2599,10 +2619,12 @@ function parseBrowseResp(data, parent, options, cacheKey) {
                             let all = JSON.parse(JSON.stringify(newResp.items))
                             newResp.items = newResp.items.splice(0, count);
                             resp.items.push({title:lists[s].title, id:lists[s].id, header:true, ihe:1, icon:lists[s].icon, svg: lists[s].svg, limit: lists[s].limit,
-                                morecmd:"-", all:{items:all, subtitle:newResp.subtitle, command:{ismore:false, command:["albums"], params:["sort:random", ALBUM_TAGS_ALL_ARTISTS]}}});
+                                             morecmd:"-", all:{items:all, subtitle:newResp.subtitle, itemCustomActions:newResp.itemCustomActions,
+                                             command:{ismore:false, command:["albums"], params:["sort:random", ALBUM_TAGS_ALL_ARTISTS]}}});
                         } else {
                             resp.items.push({title:lists[s].title, id:lists[s].id, header:true, ihe:1, icon:lists[s].icon, svg: lists[s].svg, limit: lists[s].limit,
-                                morecmd:parseInt(data.result[loop_name+"_len"])>count ? {command:lists[s].command, params:lists[s].params} : undefined});
+                                             itemCustomActions:newResp.itemCustomActions,
+                                             morecmd:parseInt(data.result[loop_name+"_len"])>count ? {command:lists[s].command, params:lists[s].params} : undefined});
                         }
                         resp.items=resp.items.concat(newResp.items);
                     }

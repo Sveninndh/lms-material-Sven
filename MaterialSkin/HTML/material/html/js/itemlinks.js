@@ -20,7 +20,7 @@ function show_artist(event, id, title, page) {
 }
 
 function showAlbum(event, album_id, artist_id, title, page, subtitle) {
-    browseItem(event, ["tracks"], ["album_id:"+album_id, "artist_id:"+artist_id, trackTags(true), SORT_KEY+"tracknum"], unescape(title), page, undefined==subtitle ? subtitle : unescape(subtitle));
+    browseItem(event, ["tracks"], ["album_id:"+album_id, "material_skin_artist_id:"+artist_id, trackTags(true), SORT_KEY+"tracknum"], unescape(title), page, undefined==subtitle ? subtitle : unescape(subtitle));
 }
 
 function showWork(event, workid, work, performance, composer, page) {
@@ -148,6 +148,9 @@ function buildArtistLine(i, page, plain, existing, useBandTag, useComposerTag, u
     if (!lmsOptions.artistFirst) {
         [line, used] = buildArtists(i, line, page, used, plain);
     }
+    if (undefined!=line && line.startsWith(" | ")) {
+        line=line.substr(3);
+    }
     try {
         return undefined==line ? line : line.replaceAll('|', '\u2022');
     } catch (e) {
@@ -230,6 +233,9 @@ function buildAlbumLine(i, page, plain, addSubtitle) {
         line=addPart(line, album);
     } else if (remoteTitle && remoteTitle!=i.title) {
         line=addPart(line, remoteTitle);
+    }
+    if (undefined!=line && line.startsWith(" | ")) {
+        line=line.substr(3);
     }
     try {
         return undefined==line ? line : line.replaceAll('|', '\u2022');

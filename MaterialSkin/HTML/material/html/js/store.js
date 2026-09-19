@@ -389,7 +389,6 @@ const store = new Vuex.Store({
         lang: 'en-US',
         twentyFourHour: false,
         mediaControls: false,
-        downloadStatus: [],
         coloredToolbars: false,
         tinted: true,
         moveDialogs: false,
@@ -949,9 +948,6 @@ const store = new Vuex.Store({
         },
         setPinQueue(state, val) {
             setQueuePinned(state, val);
-        },
-        setDownloadStatus(state, val) {
-            state.downloadStatus = val;
         },
         toggleDarkLight(state) {
             let theme = autoTheme()+(state.coloredToolbars ? "-colored" : "");

@@ -7,6 +7,7 @@
 'use strict';
 
 var customActions = undefined;
+var pluginCustomActions = undefined;
 
 function translate(s) {
     let lang = undefined==lmsOptions.lang ? 'en' : lmsOptions.lang;
@@ -22,6 +23,18 @@ function translate(s) {
 }
 
 function initCustomActions() {
+    lmsCommand("", ["material-skin", "plugin-actions"]).then(({data}) => {
+        if (data && data.result && data.result.actions) {
+            pluginCustomActions = JSON.parse(data.result.actions);
+            // Re-emit, as this and the customactions.json fetch below race. "track" and
+            // "queue-track" are resolved once, on this event, so whichever lands second
+            // needs to trigger it or those two miss whatever it brought.
+            bus.$emit('customActions');
+        }
+    }).catch(err => {
+        window.console.error(err);
+    });
+
     axios.get("/material/customactions.json?r=" + LMS_MATERIAL_REVISION).then(function (resp) {
         customActions = eval(resp.data);
         bus.$emit('customActions');
@@ -31,16 +44,28 @@ function initCustomActions() {
 }
 
 function getSectionActions(section, actions, lockedActions, filter) {
-    if (customActions[section]) {
-        for (let i=0, sect=customActions[section], len=sect.length; i<len; ++i) {
-            if ((lockedActions || !sect[i].locked) && (!sect[i].command || !sect[i].localonly || 'localhost'==location.hostname || '127.0.0.1'==location.hostname) && (undefined==filter || undefined==sect[i].filter || filter.startsWith(sect[i].filter))) {
-                if (undefined!=sect[i].title) {
-                    translate(sect[i])
+    let used = new Set();
+    let lists = [customActions, pluginCustomActions];
+    for (let l=0, llen=lists.length; l<llen; ++l) {
+        let list = lists[l];
+        if (list && list[section]) {
+            for (let i=0, sect=list[section], len=sect.length; i<len; ++i) {
+                if ((lockedActions || !sect[i].locked) && (!sect[i].command || !sect[i].localonly || 'localhost'==location.hostname || '127.0.0.1'==location.hostname) && (undefined==filter || undefined==sect[i].filter || filter.startsWith(sect[i].filter))) {
+                    if (undefined!=sect[i].title) {
+                        translate(sect[i]);
+                        // Ensure we only use the same title once...
+                        if (used.has(sect[i].title)) {
+                            continue;
+                        }
+                    }
+                    if (undefined!=sect[i].toolbar && undefined!=sect[i].toolbar.title) {
+                        translate(sect[i].toolbar);
+                    }
+                    actions.push(sect[i]);
+                    if (undefined!=sect[i].title) {
+                        used.add(sect[i].title);
+                    }
                 }
-                if (undefined!=sect[i].toolbar && undefined!=sect[i].toolbar.title) {
-                    translate(sect[i].toolbar);
-                }
-                actions.push(sect[i]);
             }
         }
     }
@@ -48,16 +73,20 @@ function getSectionActions(section, actions, lockedActions, filter) {
 
 const NO_ALL_PLAYER_ACTIONS = new Set(['item', 'artist', 'album', 'track', 'queue-track', 'year', 'genre', 'settings', 'playlist', 'playlist-track', 'album-track']);
 
-function getCustomActions(id, lockedActions, filter) {
+function getCustomActions(id, lockedActions, filter, ignoreAllPlayerActions) {
+    if (undefined==id) {
+        return undefined;
+    }
+
     let actions = [];
-    if (customActions) {
+    if (customActions || pluginCustomActions) {
         if (undefined==id) {
             getSectionActions('system', actions, lockedActions);
         } else if (id.endsWith('-dialog')) {
             getSectionActions(id, actions, lockedActions);
         } else {
             if (!NO_ALL_PLAYER_ACTIONS.has(id)) {
-                getSectionActions('allplayers', actions, lockedActions);
+                getSectionActions('allplayers', actions, lockedActions && !ignoreAllPlayerActions);
             }
             getSectionActions(id, actions, lockedActions, filter);
         }

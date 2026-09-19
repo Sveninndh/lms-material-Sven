@@ -226,15 +226,25 @@ function browseActions(view, item, args, count, showWorks, addRoleAndServices, i
         var weight = 200;
         for (var i=0, loop=STD_ITEMS[item.stdItem].actionMenu, len=loop.length; i<len; ++i) {
             if (CUSTOM_ACTIONS==loop[i]) {
-                if (undefined!=view.itemCustomActions) {
-                    for (var c=0, clen=view.itemCustomActions.length; c<clen; ++c) {
+                let itemCustomActions = view.itemCustomActions;
+                if (undefined==itemCustomActions || !(itemCustomActions instanceof Array) || itemCustomActions.length<1) {
+                    itemCustomActions = getCustomActions(STD_ITEM_ARTIST==item.stdItem || STD_ITEM_WORK_COMPOSER==item.stdItem
+                                                 ? "artist"
+                                              : STD_ITEM_ALBUM==item.stdItem
+                                                 ? "album"
+                                              : STD_ITEM_PLAYLIST==item.stdItem
+                                                 ? "playlist"
+                                              : undefined);
+                }
+                if (undefined!=itemCustomActions) {
+                    for (var c=0, clen=itemCustomActions.length; c<clen; ++c) {
                         weight++;
-                        view.itemCustomActions[c].weight=weight;
-                        view.itemCustomActions[c].custom=true;
-                        actions.push(view.itemCustomActions[c]);
+                        itemCustomActions[c].weight=weight;
+                        itemCustomActions[c].custom=true;
+                        actions.push(itemCustomActions[c]);
                     }
                 }
-            } else if ((ADD_RANDOM_ALBUM_ACTION!=loop[i] || count>1) && (DOWNLOAD_ACTION!=loop[i] || (lmsOptions.allowDownload && undefined==item.emblem))) {
+            } else if (ADD_RANDOM_ALBUM_ACTION!=loop[i] || count>1) {
                 weight++;
                 actions.push({action:loop[i], weight:ALBUM_SORTS_ACTION==loop[i] || TRACK_SORTS_ACTION==loop[i]
                                                 ? 10
@@ -492,13 +502,13 @@ function browseHandleListResponse(view, item, command, resp, prevPage, appendIte
                 actParams[currentId[0]]=currentId[1];
             }
             if (undefined!=artist_id && artist_id.indexOf(".")<0) {
-                actParams["artist_id"] = artist_id;
+                actParams["artist_id"] = originalId(artist_id);
             }
             if (undefined!=work_id && work_id.indexOf(".")<0) {
-                actParams["work_id"] = work_id;
+                actParams["work_id"] = originalId(work_id);
             }
             if (undefined!=album_id && album_id.indexOf(".")<0) {
-                actParams["album_id"] = album_id;
+                actParams["album_id"] = originalId(album_id);
             }
             if (listingArtistAlbums) {
                 actParams['artist']=title;
@@ -525,7 +535,7 @@ function browseHandleListResponse(view, item, command, resp, prevPage, appendIte
                 actParams['count']=resp.items.length;
                 var field = getField(view.command, "composer_id:");
                 if (field>=0) {
-                    actParams['composer_id']=view.command.params[field];
+                    actParams['composer_id']=originalId(view.command.params[field]);
                 }
                 field = getField(view.command, "performance:");
                 if (field>=0) {
@@ -1720,7 +1730,7 @@ function browseItemAction(view, act, origItem, index, event, slimBrowseBaseActio
             if (view.allTracksItem) {
                 view.itemAction(ADD_ALL_ACTION==act ? ADD_ACTION : INSERT_ALL_ACTION==act ? INSERT_ACTION : PLAY_SHUFFLE_ALL_ACTION==act ? PLAY_SHUFFLE_ACTION : PLAY_ACTION, view.allTracksItem);
             } else {
-                view.doList(view.items, act);
+                browseDoList(view, view.items, act);
                 bus.$emit('showMessage', i18n("Adding tracks..."));
             }
         } else { // Need to filter items...
@@ -1745,7 +1755,7 @@ function browseItemAction(view, act, origItem, index, event, slimBrowseBaseActio
             }
 
             if (itemList.length>0) {
-                view.doList(itemList, act, itemIndex);
+                browseDoList(view, itemList, act, itemIndex);
                 bus.$emit('showMessage', isFilter || item.id.endsWith("tracks") ? i18n("Adding tracks...") : i18n("Adding albums..."));
             }
         }
@@ -1800,36 +1810,6 @@ function browseItemAction(view, act, origItem, index, event, slimBrowseBaseActio
         }
     } else if (BR_COPY_ACTION==act) {
         bus.$emit('queueGetSelectedUrls', index, originalId(item.id));
-    } else if (DOWNLOAD_ACTION==act) {
-        // See if we can get album-artist from current view / history
-        let aa = view.current && view.current.id && view.current.id.startsWith("artist_id:") ? view.current.title : undefined;
-        if (aa == undefined) {
-            let alb = item.id.startsWith("album_id:") ? item : view.current.id.startsWith("album_id:") ? view.current : undefined;
-            if (undefined!=alb) {
-                if (undefined!=alb.artists) {
-                    aa = alb.artists[0];
-                } else if (undefined!=alb.subtitle) {
-                    aa = alb.subtitle;
-                }
-            }
-        }
-        if (aa == undefined) {
-            for (let loop=view.history, len=loop.length, i=len-1; i>0 && aa==undefined; --i) {
-                let hi = loop[i].current;
-                if (undefined!=hi) {
-                    if (hi.id.startsWith("artist_id:")) {
-                        aa = hi.title;
-                    } else if (hi.id.startsWith("album_id:")) {
-                        if (undefined!=hi.artists) {
-                            aa = hi.artists[0];
-                        } else if (undefined!=hi.subtitle) {
-                            aa = hi.subtitle;
-                        }
-                    }
-                }
-            }
-        }
-        download(item, item.id.startsWith("album_id:") ? browseBuildCommand(view, item) : undefined, aa);
     } else if (SHOW_IMAGE_ACTION==act) {
         let images = [];
         let idx = 0;
@@ -1964,11 +1944,15 @@ function browseItemAction(view, act, origItem, index, event, slimBrowseBaseActio
                                 tracks = loop[i].allItems;
                                 break;
                             } else if (!loop[i].header && (undefined==choice.id || loop[i].filter==choice.id)) {
-                                tracks.push(loop[i]);
+                                if (INSERT_ACTION==act) {
+                                    tracks.unshift(loop[i]);
+                                } else {
+                                    tracks.push(loop[i]);
+                                }
                             }
                         }
                         if (tracks.length>0) {
-                            view.doList(tracks, act);
+                            browseDoList(view, tracks, act);
                             bus.$emit('showMessage', i18n("Adding tracks..."));
                         }
                     }
@@ -2217,6 +2201,7 @@ function browseGoHome(view, refresh) {
     view.subtitleClickable = false;
     view.inGenre = undefined;
     view.canDrop = true;
+    view.itemCustomActions = [];
 
     if (undefined!=view.homeTimeout) {
         clearTimeout(view.homeTimeout);

@@ -44,7 +44,7 @@ function parseQueryParams() {
                                     "nativeTitlebar", "nativeTextColor", "nativeConnectionStatus", "nativeNpShareS", "nativeNpShareC", "nativeNpShareD"]);
     const BOOL_QPARAMS = new Set(["single", "addpad", "party", "altBtnLayout", "dontTrapBack", "npAutoClose", "setTitle"]);
     const INT_QPARAMS = new Set(["topPad", "botPad", "dlgPad"]);
-    const STR_QPARAMS = new Set(["layout", "appSettings", "appQuit", "appLaunchPlayer", "download", "tbarBtns", "tbarBtnsPos", "tbarBtnsStyle", "hidePlayers", "ipAddresses"]);
+    const STR_QPARAMS = new Set(["layout", "appSettings", "appQuit", "appLaunchPlayer", "tbarBtns", "tbarBtnsPos", "tbarBtnsStyle", "hidePlayers", "ipAddresses"]);
 
     var queryString = window.location.href.substring(window.location.href.indexOf('?')+1);
     var hash = queryString.indexOf('#');
@@ -53,7 +53,7 @@ function parseQueryParams() {
     }
     var query = queryString.split('&');
     var resp = { actions:[], debug:new Set(), hide:new Set(), dontEmbed:new Set(), layout:undefined, player:undefined, single:false,
-        css:undefined, download:'browser', addpad:false, party:false, setTitle:false, expand:[], npRatio:1.33333333, topPad:0, botPad:0, dlgPad:0, tbarBtns:undefined, tbarBtnsPos:'r', tbarBtnsStyle:'gnome',
+        css:undefined, addpad:false, party:false, setTitle:false, expand:[], npRatio:1.33333333, topPad:0, botPad:0, dlgPad:0, tbarBtns:undefined, tbarBtnsPos:'r', tbarBtnsStyle:'gnome',
         nativeStatus:0, nativeColors:0, nativePlayer:0, nativeUiChanges:0, nativeTheme:0, nativeCover:0, nativePlayerPower:0, nativeAccent:0,
         nativeTitlebar:0, nativeTextColor:0, nativeConnectionStatus:0, appSettings:undefined, appQuit:undefined, appLaunchPlayer:undefined, altBtnLayout:IS_WINDOWS, dontTrapBack:false, npAutoClose:true};
 
@@ -187,8 +187,9 @@ function replaceNewLines(str) {
 
 function formatTechInfo(item, source, isCurrent) {
     let technical = [];
+    let haveSampleRate = false;
     // Bit rate should be Xkbps, but sometimes LMS returns 0 (as num or string?)
-    // ...so only valid i fmore than 1 char
+    // ...so only valid if more than 1 char
     if (undefined!=item.bitrate && (""+item.bitrate).length>1) {
         technical.push(item.bitrate);
     }
@@ -197,6 +198,7 @@ function formatTechInfo(item, source, isCurrent) {
     }
     if (item.samplerate && parseInt(item.samplerate)>100) {
         technical.push((item.samplerate/1000)+"kHz");
+        haveSampleRate = true;
     }
     if (undefined!=item.replay_gain) {
         let val = parseFloat(item.replay_gain);
@@ -208,15 +210,17 @@ function formatTechInfo(item, source, isCurrent) {
         let bracket = item.type.indexOf(" (");
         let type = bracket>0 ? item.type.substring(0, bracket) : item.type;
         // BBC Sounds has aac@48000Hz, want just aac
-        if (type.length>4 && item.samplerate && type.indexOf("@")>2 && type.indexOf("Hz")>4) {
+        if (type.length>4 && haveSampleRate && type.indexOf("@")>2 && type.indexOf("Hz")>4) {
             type = type.split("@")[0];
         }
-        type = type.length<=4 ? type.toUpperCase() : type;
-        if (technical.indexOf(type)<0 && (undefined==source || (type!=source.text && type!=source.text.replace(/ /g,'')))) {
+        // Only want encoding types - not (e.g.) 'YouTube Music'
+        if (undefined==source ||
+            undefined==source.text ||
+            (type!=source.text && type.replace(/ /g,'').toLowerCase()!=source.text.replace(/ /g,'').toLowerCase())) {
             technical.push(type);
         }
     }
-    return technical.length>0 ? technical.join(', ') : undefined;
+    return technical.length>0 ? (item.transcoded ? TRANSCODED_PREFIX : "") + technical.join(', ') : undefined;
 }
 
 function formatSeconds(secs, showDays) {

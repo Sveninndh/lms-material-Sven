@@ -13,7 +13,7 @@ const LMS_STD_SETTINGS_PAGES =  new Set(['server', 'player']);
 let useDefaultSkinForServerSettings = true;
 
 function remapClassicSkinIcons(doc, col) {
-    const ICONS = ["play", "add", "edit", "favorite", "favorite_remove", "delete", "delete_white", "first", "last", "up", "down", "mix", "mmix", "next", "prev", "queue"];
+    const ICONS = ["play", "add", "edit", "favorite", "favorite_remove", "delete", "delete_white", "first", "last", "up", "down", "mix", "mmix", "next", "prev", "queue", "mmmix"];
     const OTHER_EXT = [".png", ".gif"];
     var imgList = doc.getElementsByTagName('img');
     if (imgList) {
@@ -40,7 +40,7 @@ function remapClassicSkinIcons(doc, col) {
                             let url = undefined;
                             let path = imgList[i].src;
                             let pluginPath = "";
-                            if (imgList[i].src.startsWith("http:")) {
+                            if (imgList[i].src.startsWith("http:") || imgList[i].src.startsWith("https:")) {
                                 url = new URL(path);
                                 path = url.pathname;
                                 pluginPath = "plugins/"+url.search.split("=")[1]+(path.startsWith("/html/images/") ? "/" : "/html/images/");
@@ -729,8 +729,8 @@ Vue.component('lms-iframe-dialog', {
     <v-toolbar app-data class="dialog-toolbar" @mousedown="mouseDown" id="iframe-toolbar">
      <lms-windowcontrols v-if="queryParams.nativeTitlebar && queryParams.tbarBtnsPos=='l'"></lms-windowcontrols>
      <div class="drag-area-left"></div>
-     <v-btn v-if="IS_IOS" flat icon @click="goBack(false)" :title="ttShortcutStr(i18n('Go back'), 'esc')"><v-icon>arrow_back</v-icon></v-btn>
-     <v-btn v-else flat icon v-longpress:stop="goBack" :title="ttShortcutStr(i18n('Go back'), 'esc')"><v-icon>arrow_back</v-icon></v-btn>
+     <v-btn v-if="IS_IOS" flat icon @click="goBack(false)" :title="ttShortcutStr(i18n('Go back'), 'esc')"><v-icon v-bind:class="{'apple-back':IS_APPLE}">{{BACK_ARROW}}</v-icon></v-btn>
+     <v-btn v-else flat icon v-longpress:stop="goBack" :title="ttShortcutStr(i18n('Go back'), 'esc')"><v-icon v-bind:class="{'apple-back':IS_APPLE}">{{BACK_ARROW}}</v-icon></v-btn>
      <v-btn v-if="showHome && homeButton" flat icon @click="goHome" :title="ttShortcutStr(i18n('Go home'), 'home')"><v-icon>home</v-icon></v-btn>
      <v-toolbar-title v-if="playerId && numPlayers>1 && (page=='player' || page=='extras')" @click="openChoiceMenu" class="pointer">{{title}} <v-icon>arrow_drop_down</v-icon></v-toolbar-title>
      <v-toolbar-title v-else>{{title}}</v-toolbar-title>

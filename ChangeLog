@@ -1,3 +1,61 @@
+6.4.10
+------
+1. Fix inconsistent sizing in player icon dialog.
+2. Add icon for HQPlayer - thanks to crystalgipsy.
+3. Show command result text for now playing alt buttons - thanks to Alasdair
+   Campbell.
+4. Add outline/disabled jiveStyle icon mappings - thanks to Alasdair Campbell.
+5. Show 'type' field of technical info as is, unless 'type' is same as
+6. Don't fire 'Rescan album' twice if it needed to be scolled into view.
+7. If SlimBrowse item has an 'extid' field, then map to emblem.
+
+6.4.9
+-----
+1. Fix browsing with tech info.
+
+6.4.8
+-----
+1. Show original and transcoded tech info in MAI track view.
+2. Always show tech info in MAI track view.
+3. When displaying tech in in now-playing, if transcoded is lossless, and
+   original is not lossless, then show original else show transcoded.
+4. Fix image URL rewrite when using https proxy - thanks to Andrew Jackson.
+5. Remove download support, as only really useful in APK where it no longer
+   seems to work.
+6. Osmium player icon added - thanks to adri641.
+7. Fix emblem position in lists.
+
+6.4.7
+-----
+1. Fix advanced search results display.
+2. Map 'b_mmmix.gif' to a recolourable SVG.
+3. Update Spicefly SVG icon.
+4. Show transcoded tech info, and prefix '[*]' if so.
+5. Fix some simplified Chinese translations - thanks to SunDaSora
+
+6.4.6
+-----
+ 1. Fix add/play buttons missing in toolbar for YouTube Music plugin.
+ 2. Don't allow grid for YouTube Music track lists.
+ 3. Fix 'allplayers' custom actions appearing in app menus.
+ 4. Fix track sources protocols list handling - thanks to bungh0110
+ 5. Use iOS style back icons for Apple platforms.
+ 6. Fetch custom actions for toolbar menu when clicking on search results.
+ 7. Allow plugins to register custom actions.
+ 8. Fix getting custom actions for cached artist and albums lists.
+ 9. Fix custom actions for search result items.
+10. Reset custom actions when browse back from 'More' on scrolled list.
+11. Allow custom actions on scrolled list items.
+
+6.4.5
+-----
+1. Don't pass artist_id when clicking on album link in now-playing or queue.
+2. Fix track order when appending a disc/group using album cover action.
+3. Fix MAI info when called from artist, or album, scrolled list.
+4. Add 'ytm' and 'spoton' to emblems and track sources code.
+5. Fix double-encoding of non-ASCII titles in scrolled lists - thanks to
+   stiefenm.
+
 6.4.4
 -----
 1. Allow service specific custom actions - thanks to crystalgipsy.

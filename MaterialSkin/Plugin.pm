@@ -20,7 +20,7 @@ use Slim::Utils::Log;
 use Slim::Utils::Network;
 use Slim::Utils::Prefs;
 use Slim::Utils::Strings;
-use JSON::XS::VersionOneAndTwo;
+use JSON::XS qw(decode_json encode_json);
 use Slim::Utils::Strings qw(string cstring);
 use HTTP::Status qw(RC_NOT_FOUND RC_OK);
 use File::Basename;
@@ -82,7 +82,6 @@ my $ACTIONS_URL_PARSER_RE = qr{material/customactions\.json}i;
 my $MAIFEST_URL_PARSER_RE = qr{material/material\.webmanifest}i;
 my $USER_THEME_URL_PARSER_RE = qr{material/usertheme/.+}i;
 my $USER_COLOR_URL_PARSER_RE = qr{material/usercolor/.+}i;
-my $DOWNLOAD_PARSER_RE = qr{material/download/.+}i;
 my $BACKDROP_URL_PARSER_RE = qr{material/backdrops/.+}i;
 my $GENRE_URL_PARSER_RE = qr{material/genres/.+}i;
 my $PLAYLIST_URL_PARSER_RE = qr{material/playlists/.+}i;
@@ -105,7 +104,7 @@ my %IGNORE_PROTOCOLS = map { $_ => 1 } ('mms', 'file', 'tmp', 'http', 'https', '
 
 my %RADIO_PROTOCOLS = map { $_ => 1 } ('http', 'https', 'accur', 'cplus', 'globalplayer', 'newsuk', 'pr', 'radioparadise', 'rnp', 'sounds', 'times', 'virgin', 'sxm');
 
-my @BOOL_OPTS = ('allowDownload', 'playShuffle', 'touchLinks', 'showAllArtists', 'artistFirst', 'yearInSub', 'showComment', 'genreImages', 'playlistImages', 'maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'combineAppsAndRadio', 'useGrouping', 'setPlayerLibrary');
+my @BOOL_OPTS = ('playShuffle', 'touchLinks', 'showAllArtists', 'artistFirst', 'yearInSub', 'showComment', 'genreImages', 'playlistImages', 'maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'combineAppsAndRadio', 'useGrouping', 'setPlayerLibrary');
 
 my %ROLE_ICON_MAP = (
     'bass' => 'bassist',
@@ -168,6 +167,7 @@ my $CATEGORIES_MAP = {
 };
 
 my $HOME_EXTRAS = {};
+my $PLUGIN_CUSTOM_ACTIONS = {};
 
 sub initPlugin {
     my $class = shift;
@@ -215,7 +215,6 @@ sub initPlugin {
             showAllArtists => 1,
             artistFirst => 1,
             password => '',
-            allowDownload => 0,
             commentAsDiscTitle => 0,
             showComment => 0,
             pagedBatchSize => $lmsVersion>=80400 ? 250 : 100,
@@ -247,7 +246,6 @@ sub initPlugin {
             showAllArtists => 1,
             artistFirst => 1,
             password => '',
-            allowDownload => 0,
             commentAsDiscTitle => 0,
             showComment => 0,
             pagedBatchSize => $lmsVersion>=80400 ? 250 : 100,
@@ -283,7 +281,6 @@ sub initPlugin {
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'showComment');
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'genreImages');
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless $_[1]; }, 'playlistImages');
-    $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'allowDownload');
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'useDefaultForSettings');
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless defined $_[1]; }, 'useGrouping');
     $prefs->setChange(sub { $prefs->set($_[0], 0) unless $_[1]; }, 'setPlayerLibrary');
@@ -322,7 +319,6 @@ sub initPlugin {
         Slim::Web::Pages->addRawFunction($MAIFEST_URL_PARSER_RE, \&_manifestHandler);
         Slim::Web::Pages->addRawFunction($USER_THEME_URL_PARSER_RE, \&_userThemeHandler);
         Slim::Web::Pages->addRawFunction($USER_COLOR_URL_PARSER_RE, \&_userColorHandler);
-        Slim::Web::Pages->addRawFunction($DOWNLOAD_PARSER_RE, \&_downloadHandler);
         Slim::Web::Pages->addRawFunction($BACKDROP_URL_PARSER_RE, \&_backdropHandler);
         Slim::Web::Pages->addRawFunction($GENRE_URL_PARSER_RE, \&_genreHandler);
         Slim::Web::Pages->addRawFunction($PLAYLIST_URL_PARSER_RE, \&_playlistHandler);
@@ -539,9 +535,22 @@ sub registerHomeExtra {
     $log->warn("Home Extra with id '$id' is already registered - overwriting") if $HOME_EXTRAS->{$id};
 
     my $extras = { id => $id };
-    foreach (keys %$args) { $extras->{$_} = $args->{$_} }
+    foreach (keys %$args) {
+        $extras->{$_} = $args->{$_}
+    }
 
     $HOME_EXTRAS->{'3rdparty_' . $id} = $extras;
+}
+
+sub registerCustomAction {
+    my ($section, $action) = @_;
+    main::DEBUGLOG && $log->debug("Registering " . (defined $action ? Data::Dump::dump($action) : "empty section") . " for ${section} section");
+    if (! exists($PLUGIN_CUSTOM_ACTIONS->{$section})) {
+        $PLUGIN_CUSTOM_ACTIONS->{$section} = [];
+    }
+    # $action is optional. Registering a section with no action declares an EMPTY category,
+    # which is how a plugin suppresses the generic "online-*" actions on its own items.
+    push(@{$PLUGIN_CUSTOM_ACTIONS->{$section}}, $action) if defined $action;
 }
 
 sub getHomeExtra {
@@ -554,7 +563,7 @@ sub getHomExtrasIDs {
 }
 
 sub getHomeExtra3rdPartyItems {
-    return to_json([ map {
+    return Encode::decode_utf8(encode_json([ map {
         my $item = $HOME_EXTRAS->{$_};
         {
             id          => $_,
@@ -563,7 +572,7 @@ sub getHomeExtra3rdPartyItems {
             icon        => $item->{icon},
             needsPlayer => $item->{needsPlayer}
         }
-    } keys %$HOME_EXTRAS ]);
+    } keys %$HOME_EXTRAS ]));
 }
 
 sub setHomeExtraTitle {
@@ -753,7 +762,7 @@ sub _cliCommand {
                                                   'playersettings', 'activeplayers', 'urls', 'adv-search', 'adv-search-params', 'protocols',
                                                   'players-extra-info', 'sort-playlist', 'mixer', 'release-types', 'check-for-updates',
                                                   'similar', 'apps', 'rndmix', 'scan-progress', 'send-notif', 'home-extra',
-                                                  'home-extra-3rdparty', 'player-list']) ) {
+                                                  'home-extra-3rdparty', 'player-list', 'plugin-actions']) ) {
         $request->setStatusBadParams();
         return;
     }
@@ -772,7 +781,6 @@ sub _cliCommand {
         $request->addResult('respectFixedVol', $prefs->get('respectFixedVol'));
         $request->addResult('showAllArtists', $prefs->get('showAllArtists'));
         $request->addResult('artistFirst', $prefs->get('artistFirst'));
-        $request->addResult('allowDownload', $prefs->get('allowDownload'));
         $request->addResult('commentAsDiscTitle', $prefs->get('commentAsDiscTitle'));
         $request->addResult('showComment', $prefs->get('showComment'));
         $request->addResult('pagedBatchSize', $prefs->get('pagedBatchSize'));
@@ -1168,7 +1176,7 @@ sub _cliCommand {
         my $json = $request->getParam('plugins');
         if ($json) {
             my $updating = 0;
-            my $plugins = eval { from_json( $json ) };
+            my $plugins = eval { decode_json( $json ) };
             for my $plugin (@{$plugins}) {
                 Slim::Utils::PluginDownloader->install({ name => $plugin->{'name'}, url => $plugin->{'url'}, sha => $plugin->{'sha'} });
                 $updating++;
@@ -1311,7 +1319,7 @@ sub _cliCommand {
                             require XML::Simple;
                             $request->addResult("content", XML::Simple::XMLin($content));
                         } elsif ( ($response->headers->content_type =~ /json/) || ($format && $format eq 'json') ) {
-                            $request->addResult("content", from_json($content));
+                            $request->addResult("content", decode_json($content));
                         } else {
                             $request->addResult("content", $content);
                         }
@@ -1671,9 +1679,9 @@ sub _cliCommand {
 
     if ($cmd eq 'protocols') {
         my $allPlugs =  Slim::Utils::PluginManager->allPlugins();
-        my %handlers = Slim::Player::ProtocolHandlers->registeredHandlers();
+        my @handlers = Slim::Player::ProtocolHandlers->registeredHandlers();
         my $count = 0;
-        foreach my $prot (keys %handlers) {
+        foreach my $prot (@handlers) {
             if (not exists($IGNORE_PROTOCOLS{$prot})) {
                 my $handler = Slim::Player::ProtocolHandlers->handlerForProtocol($prot);
                 if ($handler) {
@@ -2104,6 +2112,13 @@ sub _cliCommand {
         return;
     }
 
+    if ($cmd eq 'plugin-actions') {
+        if (scalar(keys(%{$PLUGIN_CUSTOM_ACTIONS}))>0) {
+            $request->addResult("actions", Encode::decode_utf8(encode_json($PLUGIN_CUSTOM_ACTIONS)));
+        }
+        $request->setStatusDone();
+        return;
+    }
     $request->setStatusBadParams();
 }
 
@@ -2482,7 +2497,7 @@ sub _handleSimilarArtists {
     my $key = shift;
     my $cacheDir = shift;
     my $ignoreAge = shift;
-    my $decoded = eval { from_json( $content ) };
+    my $decoded = eval { decode_json( $content ) };
     my @artists = ();
     my $cnt = 0;
     my $now = time();
@@ -2621,7 +2636,7 @@ sub _cliClientCommand {
     if ($cmd eq 'command-list') {
         my $json = $request->getParam('commands');
         if ($json) {
-            my $commands = eval { from_json( $json ) };
+            my $commands = eval { decode_json( $json ) };
             my $actioned = 0;
             $request->setStatusProcessing();
             for my $command (@{$commands}) {
@@ -3273,38 +3288,6 @@ sub _userColorHandler {
     }
     $response->code(RC_OK);
     Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, 'text/css', $filePath, '', 'noAttachment' );
-}
-
-sub _downloadHandler {
-    my ( $httpClient, $response ) = @_;
-    return unless $httpClient->connected;
-
-    my $request = $response->request;
-    my $id = undef;
-
-    if ($request->uri->can('query_param')) {
-        $id = $request->uri->query_param('id');
-    } else { # Manually extract "id=trackid" query parameter...
-        my $uri = $request->uri->as_string;
-        my $start = index($uri, "id=");
-
-        if ($start > 0) {
-            $start += 3;
-            $id = "#" . substr($uri, $start+3);
-        }
-    }
-
-    my $obj = Slim::Schema->find('Track', $id);
-
-    if (blessed($obj) && Slim::Music::Info::isSong($obj) && Slim::Music::Info::isFile($obj->url)) {
-        $response->code(RC_OK);
-        $response->headers->remove_content_headers;
-        Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, 'application/octet-stream', Slim::Utils::Misc::pathFromFileURL($obj->url), $obj, 1 );
-    } else {
-        $response->code(RC_NOT_FOUND);
-        $httpClient->send_response($response);
-        Slim::Web::HTTP::closeHTTPSocket($httpClient);
-    }
 }
 
 sub _backdropHandler {

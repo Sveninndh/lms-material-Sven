@@ -31,6 +31,10 @@ const IS_HIGH_DPI = matchMedia( "(-webkit-min-device-pixel-ratio: 2), (min-devic
 const IS_WINDOWS  = !IS_ANDROID && !IS_APPLE && checkPlatform('Win');
 const IS_LINUX    = !IS_ANDROID && !IS_APPLE && !IS_WINDOWS && checkPlatform('Linux');
 const SUPPORTS_TOUCH = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) ||(navigator.msMaxTouchPoints > 0));
+const BACK_ARROW = IS_APPLE ? "arrow_back_ios" : "arrow_back";
+const UP_ARROW = /*IS_APPLE ? "arrow_drop_up" :*/ "arrow_upward";
+const DOWN_ARROW = /*IS_APPLE ? "arrow_drop_down" :*/ "arrow_downward";
+
 const MACOS_SCROLLBAR_SIZE = 16;
 const COLOR_USE_STANDARD = 0;
 const COLOR_USE_FROM_COVER = 1;
@@ -210,7 +214,7 @@ const IFRAME_HOME_NAVIGATES_BROWSE_HOME = 1
 const IFRAME_HOME_CLOSES_DIALOGS = 2
 
 const SKIN_GENRE_TAGS = ['composer', 'conductor', 'band'];
-const SKIN_BOOL_OPTS = ['maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'showAllArtists', 'artistFirst', IS_IOS ? 'xx' : 'allowDownload', 'showComment', 'noArtistFilter', 'genreImages', 'playlistImages', 'touchLinks', 'yearInSub', 'playShuffle', 'combineAppsAndRadio', 'useGrouping', 'setPlayerLibrary'];
+const SKIN_BOOL_OPTS = ['maiComposer', 'showConductor', 'showBand', 'showArtistWorks', 'showAllArtists', 'artistFirst', 'showComment', 'noArtistFilter', 'genreImages', 'playlistImages', 'touchLinks', 'yearInSub', 'playShuffle', 'combineAppsAndRadio', 'useGrouping', 'setPlayerLibrary'];
 const SKIN_INT_OPTS = ['showComposer', 'respectFixedVol', 'commentAsDiscTitle', 'pagedBatchSize', 'screensaverTimeout', 'npSwitchTimeout', 'useDefaultForSettings'];
 
 const MSK_REV_SORT_OPT = "msk-revsort:1";
@@ -290,3 +294,5 @@ const SEARCH_OTHER_CAT = 6;
 
 const HOME_SHORTCUT = "-h";
 const SEARCH_SHORTCUT = "-s";
+
+const TRANSCODED_PREFIX = "<obj class=\"mfi\">\uEAF2</obj> ";

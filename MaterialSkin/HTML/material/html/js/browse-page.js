@@ -8,8 +8,10 @@
 
 var B_ALBUM_SORTS=[ ];
 var B_TRACK_SORTS=[ ];
-const ALLOW_ADD_ALL = new Set(['trackinfo', 'youtube', 'spotty', 'spoton', 'qobuz', 'tidal', 'wimp' /*is Tidal*/, 'deezer', 'tracks', 'musicip', 'musicsimilarity', 'blissmixer', 'bandcamp']); // Allow add-all/play-all from 'trackinfo', as Spotty's 'Top Titles' access via 'More' needs this
-const ALLOW_FAKE_ALL_TRACKS_ITEM = new Set(['youtube', 'qobuz']); // Allow using 'fake' add all item
+// Control which apps can have add/play/append entries in toolbar
+const ALLOW_ADD_ALL = new Set(['trackinfo', 'youtube', 'youtubemusic', 'spotty', 'spoton', 'qobuz', 'tidal', 'wimp' /*is Tidal*/, 'deezer', 'tracks', 'musicip', 'musicsimilarity', 'blissmixer', 'bandcamp']); // Allow add-all/play-all from 'trackinfo', as Spotty's 'Top Titles' access via 'More' needs this
+// Add a fake 'all tracks' entry in track list response, allowing a single command to add all tracks - rather than adding 1 by 1
+const ALLOW_FAKE_ALL_TRACKS_ITEM = new Set(['youtube', 'youtubemusic', 'qobuz']); // Allow using 'fake' add all item
 const MIN_WIDTH_FOR_DETAILED_SUB = 350;
 const MIN_WIDTH_FOR_HBTNS = 500;
 const MIN_WIDTH_INDENT_LEFT = 550;
@@ -65,13 +67,13 @@ var lmsBrowse = Vue.component("lms-browse", {
    <v-btn :title="trans.cancel" flat icon class="toolbar-button" @click="clearSelection()"><v-icon>cancel</v-icon></v-btn>
   </v-layout>
   <v-layout v-else-if="searchActive">
-   <v-btn flat icon @click="closeSearch" class="toolbar-button back-button" id="close-search-button" :title="trans.close"><v-icon>arrow_back</v-icon></v-btn>
+   <v-btn flat icon @click="closeSearch" class="toolbar-button back-button" id="close-search-button" :title="trans.close"><v-icon v-bind:class="{'apple-back':IS_APPLE}">{{BACK_ARROW}}</v-icon></v-btn>
    <lms-search-field v-if="searchActive==1" @results="handleListResponse"></lms-search-field>
    <lms-search-list v-else @scrollTo="highlightItem" :view="this" :msearch="true" :title="toolbarTitle"></lms-search-list>
   </v-layout>
   <v-layout v-else-if="history.length>0">
-   <v-btn v-if="IS_IOS" flat icon @click="backBtnPressed(false)" class="toolbar-button" v-bind:class="{'back-button':!homeButton || history.length<2}" id="back-button" :title="trans.goBack | tooltipStr('esc', keyboardControl)"><v-icon>arrow_back</v-icon></v-btn>
-   <v-btn v-else flat icon v-longpress:stop="backBtnPressed" class="toolbar-button" v-bind:class="{'back-button':!homeButton || history.length<2}" id="back-button" :title="trans.goBack | tooltipStr('esc', keyboardControl)"><v-icon>arrow_back</v-icon></v-btn>
+   <v-btn v-if="IS_IOS" flat icon @click="backBtnPressed(false)" class="toolbar-button" v-bind:class="{'back-button':!homeButton || history.length<2}" id="back-button" :title="trans.goBack | tooltipStr('esc', keyboardControl)"><v-icon v-bind:class="{'apple-back':IS_APPLE}">{{BACK_ARROW}}</v-icon></v-btn>
+   <v-btn v-else flat icon v-longpress:stop="backBtnPressed" class="toolbar-button" v-bind:class="{'back-button':!homeButton || history.length<2}" id="back-button" :title="trans.goBack | tooltipStr('esc', keyboardControl)"><v-icon v-bind:class="{'apple-back':IS_APPLE}">{{BACK_ARROW}}</v-icon></v-btn>
    <v-btn v-if="history.length>1 && homeButton" flat icon @click="homeBtnPressed()" class="toolbar-button" id="home-button" v-bind:class="{'dst-home':showDetailedSubtoolbar}" :title="trans.goHome | tooltipStr('home', keyboardControl)"><v-icon>home</v-icon></v-btn>
    <div v-if="wide>=WIDE_COVER && currentImages" @click="showHistory($event)" class="sub-cover pointer">
     <div class="mi" :class="'mi'+currentImages.length">
@@ -473,7 +475,7 @@ var lmsBrowse = Vue.component("lms-browse", {
    <template v-for="(action, index) in menu.itemMenu">
     <div style="height:0px!important" v-if="(queryParams.party && HIDE_FOR_PARTY.has(action)) || (isTop && action==SELECT_ACTION) || (LMS_KIOSK_MODE && HIDE_FOR_KIOSK.has(action)) || ((PLAY_SHUFFLE_ACTION==action || PLAY_SHUFFLE_ALL_ACTION==action) && !allowShuffle(menu.item)) || (SELECT_ACTION==action && searchActive)"></div>
     <v-divider v-else-if="DIVIDER==action"></v-divider>
-    <template v-for="(cact, cindex) in itemCustomActions" v-else-if="CUSTOM_ACTIONS==action">
+    <template v-for="(cact, cindex) in itemCustomActs(menu.item, menu.index)" v-else-if="CUSTOM_ACTIONS==action">
      <v-list-tile role="menuitem" @click="itemCustomAction(cact, menu.item, menu.index)">
       <v-list-tile-avatar>
        <v-icon v-if="undefined==cact.svg">{{cact.icon}}</v-icon>
@@ -495,7 +497,7 @@ var lmsBrowse = Vue.component("lms-browse", {
      </v-list-tile-avatar>
      <v-list-tile-title>{{ACTIONS[UNSELECT_ACTION].title}}</v-list-tile-title>
     </v-list-tile>
-    <v-list-tile role="menuitem" v-else-if="action==BR_COPY_ACTION ? queueSelection : action==MOVE_HERE_ACTION ? (selection.size>0 && !menu.item.selected) : action==DOWNLOAD_ACTION ? lmsOptions.allowDownload && undefined==menu.item.emblem : action==PLAY_DISC_ACTION ? undefined!=menu.item.disc : (action!=RATING_ACTION || showRating)" @click="menuItemAction(action, menu.item, menu.index, $event)">
+    <v-list-tile role="menuitem" v-else-if="action==BR_COPY_ACTION ? queueSelection : action==MOVE_HERE_ACTION ? (selection.size>0 && !menu.item.selected) : action==PLAY_DISC_ACTION ? undefined!=menu.item.disc : (action!=RATING_ACTION || showRating)" @click="menuItemAction(action, menu.item, menu.index, $event)">
      <v-list-tile-avatar>
       <v-icon v-if="undefined==ACTIONS[action].svg">{{ACTIONS[action].icon}}</v-icon>
       <img v-else class="svg-img" :src="ACTIONS[action].svg | svgIcon(darkUi)"></img>
@@ -2365,6 +2367,23 @@ var lmsBrowse = Vue.component("lms-browse", {
                     this.saveTopList();
                 }
             }
+        },
+        itemCustomActs(item, itemIndex) {
+            if (undefined!=this.itemCustomActions && !(this.itemCustomActions instanceof Array) && undefined!=item && undefined!=item.id && item.id.includes("_id:")) {
+                // Custom actions for search results...
+                let id = item.id.split(":")[0];
+                let type = id.substring(0, id.length-3);
+                return this.itemCustomActions[type];
+            }
+            // Home extra items...
+            if ((undefined==this.itemCustomActions || (this.itemCustomActions instanceof Array && this.itemCustomActions.length<1)) && itemIndex>0 && itemIndex<this.items.length && undefined!=item && !item.header && item.ihe && this.isTop) {
+                for (let idx=itemIndex-1; idx>=0; idx--) {
+                    if (this.items[idx].header) {
+                        return this.items[idx].itemCustomActions;
+                    }
+                }
+            }
+            return this.itemCustomActions;
         }
     },
     mounted() {
